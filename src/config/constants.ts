@@ -5,10 +5,14 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:80
 export const API_ENDPOINTS = {
   // Authentification
   LOGIN: '/login',
-  
+
   // Utilisateurs - ✅ CORRECTION: /api/users → /api/users/all
   USERS: '/api/users/all',
   USER_BY_ID: (id: number) => `/api/users/getById/${id}`,
+
+  // Événements
+  EVENEMENTS: '/api/evenements/all',
+  EVENEMENT_BY_ID: (id: number) => `/api/evenements/${id}`,
 } as const;
 
 // Clés du localStorage

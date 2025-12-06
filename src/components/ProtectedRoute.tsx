@@ -40,6 +40,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         </div>
       </div>
     );
+    
   }
 
   // Si tout est OK, afficher le contenu
