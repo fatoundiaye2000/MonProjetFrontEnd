@@ -1,3 +1,4 @@
+// src/services/auth.service.ts
 import httpClient from '../utils/httpClient';
 import { API_ENDPOINTS, STORAGE_KEYS } from '../config/constants';
 import { LoginRequest, LoginResponse, RegisterRequest, DecodedToken } from '../types/auth.types';
@@ -10,13 +11,15 @@ class AuthService {
    */
   async login(username: string, password: string): Promise<DecodedToken> {
     try {
-      // ⭐⭐⭐ CORRECTION : Utiliser "email" au lieu de "username" ⭐⭐⭐
+      console.log('📡 [AUTH SERVICE] Début login pour:', username);
+      
+      // Le backend Spring attend "email", pas "username"
       const loginData: LoginRequest = {
-        email: username,  // Le backend Spring attend "email", pas "username"
+        email: username,
         password: password
       };
 
-      console.log('📤 Données envoyées au login:', loginData);
+      console.log('📤 [AUTH SERVICE] Données envoyées:', { email: username, password: '***' });
 
       // Appel API
       const response = await httpClient.post<LoginResponse>(
@@ -24,26 +27,53 @@ class AuthService {
         loginData
       );
 
+      console.log('📥 [AUTH SERVICE] Réponse reçue:', { 
+        token: response.data.token ? '✓ Présent' : '✗ Absent',
+        roles: response.data.roles 
+      });
+
       const { token } = response.data;
 
+      if (!token) {
+        console.error('❌ [AUTH SERVICE] Token manquant dans la réponse!');
+        throw new Error('Token manquant dans la réponse du serveur');
+      }
+
       // Stocker le token dans localStorage
+      console.log('💾 [AUTH SERVICE] Stockage du token...');
       this.setToken(token);
       
+      // Vérifier immédiatement
+      const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
+      console.log('🔍 [AUTH SERVICE] Vérification stockage:', storedToken ? 'OK' : 'ÉCHEC');
+      
+      if (!storedToken) {
+        console.error('❌ [AUTH SERVICE] CRITIQUE: Token non stocké!');
+        throw new Error('Impossible de stocker le token');
+      }
+      
       // Décoder le token pour extraire les infos utilisateur
+      console.log('🔓 [AUTH SERVICE] Décodage du token...');
       const decoded = this.decodeToken(token);
       
       // Stocker les infos utilisateur
+      console.log('💾 [AUTH SERVICE] Stockage des infos user...');
       this.setUser(decoded);
+      
+      // Vérifier
+      const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
+      console.log('🔍 [AUTH SERVICE] User stocké:', storedUser ? 'OK' : 'ÉCHEC');
 
-      console.log('✅ Login réussi:', decoded);
+      console.log('✅ [AUTH SERVICE] Login terminé avec succès:', {
+        username: decoded.sub,
+        roles: decoded.roles
+      });
 
-      // Retourner les données décodées
       return decoded;
 
     } catch (error) {
-      console.error('❌ Erreur login:', error);
+      console.error('❌ [AUTH SERVICE] Erreur login:', error);
       
-      // Gestion propre des erreurs sans 'any'
       if (error instanceof Error) {
         throw new Error(error.message);
       } else {
@@ -58,15 +88,16 @@ class AuthService {
    */
   async register(data: RegisterRequest): Promise<Utilisateur> {
     try {
+      console.log('📡 [AUTH SERVICE] Inscription pour:', data.email);
       const response = await httpClient.post<Utilisateur>(
         API_ENDPOINTS.USERS,
         data
       );
+      console.log('✅ [AUTH SERVICE] Inscription réussie');
       return response.data;
     } catch (error) {
-      console.error('Erreur inscription:', error);
+      console.error('❌ [AUTH SERVICE] Erreur inscription:', error);
       
-      // Gestion propre des erreurs sans 'any'
       if (error instanceof Error) {
         throw new Error(error.message);
       } else {
@@ -80,9 +111,10 @@ class AuthService {
    * Déconnexion : nettoie le localStorage
    */
   logout(): void {
+    console.log('👋 [AUTH SERVICE] Déconnexion...');
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER);
-    console.log('🔒 Déconnexion effectuée');
+    console.log('🔒 [AUTH SERVICE] LocalStorage nettoyé');
   }
 
   /**
@@ -91,19 +123,19 @@ class AuthService {
    */
   decodeToken(token: string): DecodedToken {
     try {
-      // Un JWT a 3 parties séparées par des points : header.payload.signature
-      // On prend la 2ème partie (index 1)
       const payloadBase64 = token.split('.')[1];
-
-      // Décoder le base64 en string JSON
       const payloadJson = atob(payloadBase64);
-
-      // Parser le JSON en objet JavaScript
       const decoded: DecodedToken = JSON.parse(payloadJson);
-
+      
+      console.log('🔓 [AUTH SERVICE] Token décodé:', {
+        sub: decoded.sub,
+        roles: decoded.roles,
+        exp: new Date(decoded.exp * 1000).toLocaleString()
+      });
+      
       return decoded;
     } catch (error) {
-      console.error('Erreur décodage token:', error);
+      console.error('❌ [AUTH SERVICE] Erreur décodage token:', error);
       throw new Error('Token invalide');
     }
   }
@@ -114,11 +146,17 @@ class AuthService {
   isTokenExpired(token: string): boolean {
     try {
       const decoded = this.decodeToken(token);
-      const now = Date.now() / 1000; // Convertir milliseconds en secondes
-
-      return decoded.exp < now; // true si expiré
+      const now = Date.now() / 1000;
+      const isExpired = decoded.exp < now;
+      
+      if (isExpired) {
+        console.log('⏰ [AUTH SERVICE] Token expiré');
+      }
+      
+      return isExpired;
     } catch {
-      return true; // Si erreur de décodage = considérer comme expiré
+      console.log('⚠️ [AUTH SERVICE] Token invalide ou corrompu');
+      return true;
     }
   }
 
@@ -126,13 +164,16 @@ class AuthService {
    * MÉTHODE 6 : OBTENIR LE TOKEN ACTUEL
    */
   getToken(): string | null {
-    return localStorage.getItem(STORAGE_KEYS.TOKEN);
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    console.log('🔑 [AUTH SERVICE] getToken:', token ? 'Présent' : 'Absent');
+    return token;
   }
 
   /**
    * MÉTHODE 7 : STOCKER LE TOKEN (privée)
    */
   private setToken(token: string): void {
+    console.log('💾 [AUTH SERVICE] setToken - Longueur:', token.length);
     localStorage.setItem(STORAGE_KEYS.TOKEN, token);
   }
 
@@ -144,6 +185,7 @@ class AuthService {
       username: decoded.sub,
       roles: decoded.roles,
     };
+    console.log('💾 [AUTH SERVICE] setUser:', user);
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
   }
 
@@ -152,10 +194,12 @@ class AuthService {
    */
   getUser(): { username: string; roles: string[] } | null {
     const userStr = localStorage.getItem(STORAGE_KEYS.USER);
+    console.log('👤 [AUTH SERVICE] getUser:', userStr ? 'Présent' : 'Absent');
     if (!userStr) return null;
     try {
       return JSON.parse(userStr);
     } catch {
+      console.error('❌ [AUTH SERVICE] Erreur parsing user');
       return null;
     }
   }
@@ -165,8 +209,13 @@ class AuthService {
    */
   isAuthenticated(): boolean {
     const token = this.getToken();
-    if (!token) return false;
-    return !this.isTokenExpired(token);
+    if (!token) {
+      console.log('🔒 [AUTH SERVICE] isAuthenticated: false (pas de token)');
+      return false;
+    }
+    const isAuth = !this.isTokenExpired(token);
+    console.log('🔒 [AUTH SERVICE] isAuthenticated:', isAuth);
+    return isAuth;
   }
 
   /**
@@ -175,7 +224,14 @@ class AuthService {
   hasRole(role: string): boolean {
     const user = this.getUser();
     if (!user) return false;
-    return user.roles.includes(role);
+    
+    const hasRole = user.roles.some(r => 
+      r.toUpperCase() === role.toUpperCase() || 
+      r.toUpperCase() === `ROLE_${role.toUpperCase()}`
+    );
+    
+    console.log(`🔐 [AUTH SERVICE] hasRole(${role}):`, hasRole, 'Roles:', user.roles);
+    return hasRole;
   }
 }
 

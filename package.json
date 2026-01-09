@@ -4,7 +4,6 @@
   "private": true,
   "homepage": "https://fatoundiaye2000.github.io/MonProjetFrontEnd",
   "type": "module",
-
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -12,14 +11,13 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
-
   "dependencies": {
     "axios": "^1.12.2",
+    "lucide-react": "^0.562.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4"
   },
-
   "devDependencies": {
     "@eslint/js": "^9.36.0",
     "@types/node": "^24.7.1",
@@ -38,7 +36,6 @@
     "typescript-eslint": "^8.45.0",
     "vite": "npm:rolldown-vite@7.1.14"
   },
-
   "overrides": {
     "vite": "npm:rolldown-vite@7.1.14"
   }

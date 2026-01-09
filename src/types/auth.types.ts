@@ -1,32 +1,36 @@
-// Requête de login (ce qu'on envoie au backend)
+// src/types/auth.types.ts
+
+export interface RegisterRequest {
+  nom: string;
+  prenom?: string;
+  email: string;
+  motDePasse: string;
+  telephone?: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
 }
 
-// Réponse du backend après login réussi
 export interface LoginResponse {
   token: string;
+  roles: string[];
+  username?: string;
+  email?: string;
 }
 
-// Requête d'inscription
-export interface RegisterRequest {
-  nom: string;
-  prenom: string;
-  dateDeNaissance: string;
+export interface User {
+  id?: number;
+  username: string;
   email: string;
-  motDePasse: string;
-  role: {
-    id: number;
-  };
-  entreprise?: {
-    id: number;
-  } | null;
+  roles: string[];
+  enabled?: boolean;
 }
 
-// Données décodées du JWT token
 export interface DecodedToken {
   sub: string;
   roles: string[];
   exp: number;
+  iat: number;
 }

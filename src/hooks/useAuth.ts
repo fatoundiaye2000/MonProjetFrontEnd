@@ -132,4 +132,4 @@ export const useAuth = (): UseAuthReturn => {
     clearError,
     hasRole,
   };
-};
+};       

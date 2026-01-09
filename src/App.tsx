@@ -30,10 +30,10 @@ function App() {
               <Events />
             </ProtectedRoute>
           }
-        />
+        /> {/* ⭐⭐⭐ ICI : Ajout de la fermeture </Route> ⭐⭐⭐ */}
       </Routes>
     </BrowserRouter>
   );
 }
 
-export default App;
+export default App;        
