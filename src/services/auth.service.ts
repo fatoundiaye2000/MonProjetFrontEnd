@@ -236,4 +236,4 @@ class AuthService {
 }
 
 // Exporter une instance unique (singleton)
-export default new AuthService();
+export default new AuthService();  

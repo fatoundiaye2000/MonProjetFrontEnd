@@ -45,4 +45,4 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Si tout est OK, afficher le contenu
   return <>{children}</>;
-};      
+};
