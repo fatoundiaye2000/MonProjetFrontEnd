@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import eventService from '../services/event.service';
 import uploadService from '../services/upload.service';
 import { Evenement } from '../types/event.types';
+import { STORAGE_KEYS } from '../config/constants'; // ✅ IMPORTATION AJOUTÉE
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -59,7 +60,7 @@ export default function Home() {
     {
       id_event: 2,
       titre_event: "Exposition d'Art Contemporain",
-      description: "Une collection exceptionnelle d'œuvres d'art contemporain d'artistes émergents et confirmés.",
+      description: "Une collection exceptionnelle d'œuvres d'œuvres d'art contemporain d'artistes émergents et confirmés.",
       date_debut: new Date('2026-03-10T10:00:00').toISOString(),
       date_fin: new Date('2026-05-10T18:00:00').toISOString(),
       nb_place: 150,
@@ -134,7 +135,8 @@ export default function Home() {
 
   // Récupérer les infos utilisateur depuis localStorage
   const getUser = () => {
-    const userStr = localStorage.getItem('user');
+    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.USER
+    const userStr = localStorage.getItem(STORAGE_KEYS.USER);
     return userStr ? JSON.parse(userStr) : null;
   };
 
@@ -159,8 +161,9 @@ export default function Home() {
   }, [dropdownOpen]);
 
   const checkAuthStatus = () => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
+    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.TOKEN et STORAGE_KEYS.USER
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    const user = localStorage.getItem(STORAGE_KEYS.USER);
     
     if (token && user) {
       try {
@@ -261,7 +264,8 @@ export default function Home() {
 
   // Vérifier si l'utilisateur a un token valide
   const isAuthenticated = () => {
-    const token = localStorage.getItem('token');
+    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.TOKEN
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
     return !!token;
   };
 
@@ -279,15 +283,16 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.TOKEN et STORAGE_KEYS.USER
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER);
     setIsLoggedIn(false);
     setUserName('');
     navigate('/');
     setDropdownOpen(false);
   };
 
-  // 🔥 FONCTION CORRIGÉE : Utilise UNIQUEMENT vos images réelles du backend Spring Boot
+  // 🔥 FONCTION CORRIGÉE : Utilise UNIQUEMENT vos images réelles du backend
   const getEventImage = useCallback((event: Evenement): string => {
     console.log(`🖼️ Recherche image pour: ${event.titre_event}`);
     
@@ -1228,4 +1233,4 @@ export default function Home() {
       </footer>
     </div>
   );
-}     
+}

@@ -1,3 +1,5 @@
+// src/config/constants.ts
+
 // URL de base de votre API backend
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
@@ -15,7 +17,7 @@ export const API_ENDPOINTS = {
   EVENEMENT_BY_ID: (id: number) => `/api/evenements/${id}`,
 } as const;
 
-// Clés du localStorage
+// Clés du localStorage - ✅ UTILISEZ CES CLÉS DANS TOUT VOTRE CODE
 export const STORAGE_KEYS = {
   TOKEN: 'auth_token',
   USER: 'user_data',

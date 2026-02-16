@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { STORAGE_KEYS } from '../config/constants'; // ✅ IMPORTATION AJOUTÉE
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,6 +13,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { isAuthenticated, isLoading, hasRole } = useAuth();
 
+  // Debug
+  console.log('🔒 [ProtectedRoute] Statut:');
+  console.log('  isLoading:', isLoading);
+  console.log('  isAuthenticated:', isAuthenticated);
+  console.log('  localStorage token:', localStorage.getItem(STORAGE_KEYS.TOKEN));
+  console.log('  localStorage user:', localStorage.getItem(STORAGE_KEYS.USER));
+
   // Pendant le chargement, afficher un loader
   if (isLoading) {
     return (
@@ -23,6 +31,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Si pas authentifié, rediriger vers login
   if (!isAuthenticated) {
+    console.log('⚠️ [ProtectedRoute] Redirection vers /login');
     return <Navigate to="/login" replace />;
   }
 
@@ -40,9 +49,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         </div>
       </div>
     );
-    
   }
 
   // Si tout est OK, afficher le contenu
+  console.log('✅ [ProtectedRoute] Accès autorisé');
   return <>{children}</>;
 };

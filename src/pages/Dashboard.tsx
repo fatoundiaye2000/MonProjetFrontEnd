@@ -4,6 +4,7 @@ import apiService from '../services/api';
 import { Utilisateur } from '../types/user.types';
 import { Evenement } from '../types/event.types';
 import { useNavigate } from 'react-router-dom';
+import { STORAGE_KEYS } from '../config/constants'; // ✅ IMPORTATION AJOUTÉE
 
 // Interface pour l'utilisateur stocké dans localStorage
 interface LocalStorageUser {
@@ -28,16 +29,19 @@ export default function Dashboard() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Récupérer les infos utilisateur depuis localStorage
-    const userData = localStorage.getItem('user');
+    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.USER au lieu de 'user'
+    const userData = localStorage.getItem(STORAGE_KEYS.USER);
     if (userData) {
       try {
         const parsedUser: LocalStorageUser = JSON.parse(userData);
         setCurrentUser(parsedUser);
+        console.log('✅ Utilisateur chargé depuis localStorage:', parsedUser);
       } catch (err) {
         console.error('Erreur parsing user data:', err);
         setCurrentUser(null);
       }
+    } else {
+      console.warn('❌ Aucune donnée utilisateur trouvée dans localStorage avec clé:', STORAGE_KEYS.USER);
     }
     
     loadUsers();
@@ -129,15 +133,12 @@ export default function Dashboard() {
     setDropdownOpen(!dropdownOpen);
   };
 
-  // ⭐⭐⭐ FONCTION MISE À JOUR POUR TOUTES LES ROUTES ⭐⭐⭐
   const handleMenuAction = (action: string) => {
     setDropdownOpen(false);
     
     switch (action) {
       case 'accueil':
-        // Retour à la page publique avec ancre #accueil
         navigate('/');
-        // Attendre un peu pour que la navigation se fasse
         setTimeout(() => {
           const accueilSection = document.getElementById('accueil');
           if (accueilSection) {
@@ -246,7 +247,6 @@ export default function Dashboard() {
                   onClick={toggleDropdown}
                   className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg"
                 >
-                  {/* Icône hamburger sans texte "Menu" */}
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
@@ -256,7 +256,6 @@ export default function Dashboard() {
                 {dropdownOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
                     <div className="py-2">
-                      {/* Accueil */}
                       <button
                         onClick={() => handleMenuAction('accueil')}
                         className="w-full text-left px-4 py-3 hover:bg-purple-50 transition-colors flex items-center"
@@ -269,7 +268,6 @@ export default function Dashboard() {
 
                       <div className="border-t border-gray-100 my-1"></div>
 
-                      {/* Tableau de bord */}
                       <button
                         onClick={() => handleMenuAction('dashboard')}
                         className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center"
@@ -280,7 +278,6 @@ export default function Dashboard() {
                         <span className="font-medium">📊 Tableau de bord</span>
                       </button>
 
-                      {/* Voir les événements */}
                       <button
                         onClick={() => handleMenuAction('evenements')}
                         className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors flex items-center"
@@ -291,7 +288,6 @@ export default function Dashboard() {
                         <span className="font-medium">📅 Voir les événements</span>
                       </button>
 
-                      {/* Inscription */}
                       <button
                         onClick={() => handleMenuAction('inscription')}
                         className="w-full text-left px-4 py-3 hover:bg-yellow-50 transition-colors flex items-center"
@@ -302,7 +298,6 @@ export default function Dashboard() {
                         <span className="font-medium">👥 Inscription événement</span>
                       </button>
 
-                      {/* Les réservations */}
                       <button
                         onClick={() => handleMenuAction('mes-reservations')}
                         className="w-full text-left px-4 py-3 hover:bg-teal-50 transition-colors flex items-center"
@@ -313,7 +308,6 @@ export default function Dashboard() {
                         <span className="font-medium">🎫 Les réservations</span>
                       </button>
 
-                      {/* Créer un événement */}
                       <button
                         onClick={() => handleMenuAction('creer')}
                         className="w-full text-left px-4 py-3 hover:bg-emerald-50 transition-colors flex items-center"
@@ -324,7 +318,6 @@ export default function Dashboard() {
                         <span className="font-medium">➕ Créer un événement</span>
                       </button>
 
-                      {/* Statistiques */}
                       <button
                         onClick={() => handleMenuAction('statistiques')}
                         className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition-colors flex items-center"
@@ -335,7 +328,6 @@ export default function Dashboard() {
                         <span className="font-medium">📊 Statistiques</span>
                       </button>
 
-                      {/* Paramètres */}
                       <button
                         onClick={() => handleMenuAction('parametres')}
                         className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center"
@@ -347,7 +339,6 @@ export default function Dashboard() {
                         <span className="font-medium">⚙️ Paramètres</span>
                       </button>
 
-                      {/* ⭐⭐⭐ Gestion utilisateurs (uniquement pour admin) ⭐⭐⭐ */}
                       {isAdmin() && (
                         <>
                           <div className="border-t border-gray-100 my-1"></div>
@@ -381,7 +372,6 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Affichage des erreurs globales */}
         {(userError || eventError) && (
           <div className="mb-6">
             {userError && (
@@ -651,4 +641,4 @@ export default function Dashboard() {
       </footer>
     </div>
   );
-}                                                                                                                          
+}

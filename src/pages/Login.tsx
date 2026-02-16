@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { STORAGE_KEYS } from '../config/constants'; // ✅ IMPORTATION AJOUTÉE
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -14,10 +15,20 @@ export default function Login() {
     clearError();
 
     try {
+      console.log('🔑 [Login] Tentative de connexion...');
       await login(username, password);
+      
+      // Debug: vérifier ce qui est stocké
+      console.log('🔍 [Login] localStorage après connexion:');
+      console.log('  auth_token:', localStorage.getItem(STORAGE_KEYS.TOKEN));
+      console.log('  user_data:', localStorage.getItem(STORAGE_KEYS.USER));
+      console.log('  token:', localStorage.getItem('token'));
+      console.log('  user:', localStorage.getItem('user'));
+      
+      // Rediriger vers le dashboard
       navigate('/dashboard');
     } catch (err) {
-      console.error('Erreur login:', err);
+      console.error('❌ [Login] Erreur login:', err);
     }
   };
 
@@ -98,7 +109,14 @@ export default function Login() {
             </Link>
           </p>
         </div>
+        
+        {/* Debug info */}
+        <div className="mt-4 p-3 bg-gray-100 rounded text-xs text-gray-600">
+          <p className="font-semibold">Debug Info:</p>
+          <p>Clés utilisées: {STORAGE_KEYS.TOKEN}, {STORAGE_KEYS.USER}</p>
+          <p>Testez avec: admin@example.com / 123</p>
+        </div>
       </div>
     </div>
   );
-}   
+}

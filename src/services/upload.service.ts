@@ -1,4 +1,6 @@
+// src/services/upload.service.ts
 import axios, { AxiosError } from 'axios';
+import { STORAGE_KEYS } from '../config/constants'; // ✅ IMPORTATION AJOUTÉE
 
 // URL DIRECTE vers votre backend Spring Boot
 const BACKEND_URL = 'http://localhost:8081';
@@ -8,10 +10,10 @@ const axiosInstance = axios.create({
   timeout: 10000,
 });
 
-// Intercepteur pour ajouter le token
+// Intercepteur pour ajouter le token - ✅ CORRIGÉ: STORAGE_KEYS.TOKEN
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN); // ✅ CORRIGÉ
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }

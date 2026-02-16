@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { STORAGE_KEYS } from '../config/constants'; // ✅ IMPORTATION AJOUTÉE
 
 export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -10,7 +11,8 @@ export default function Layout() {
 
   // Récupérer les infos utilisateur depuis localStorage
   const getUser = () => {
-    const userStr = localStorage.getItem('user');
+    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.USER au lieu de 'user'
+    const userStr = localStorage.getItem(STORAGE_KEYS.USER);
     return userStr ? JSON.parse(userStr) : null;
   };
 
@@ -40,8 +42,9 @@ export default function Layout() {
   }, [location.pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.TOKEN et STORAGE_KEYS.USER
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER);
     navigate('/login');
   };
 
@@ -57,7 +60,8 @@ export default function Layout() {
 
   // Vérifier si l'utilisateur a un token valide
   const isAuthenticated = () => {
-    const token = localStorage.getItem('token');
+    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.TOKEN
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
     return !!token;
   };
 
@@ -526,4 +530,4 @@ export default function Layout() {
       </footer>
     </div>
   );
-}     
+}
