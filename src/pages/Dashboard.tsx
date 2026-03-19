@@ -1,12 +1,13 @@
+// src/pages/Dashboard.tsx
+
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import apiService from '../services/api';
 import { Utilisateur } from '../types/user.types';
 import { Evenement } from '../types/event.types';
 import { useNavigate } from 'react-router-dom';
-import { STORAGE_KEYS } from '../config/constants'; // ✅ IMPORTATION AJOUTÉE
+import { STORAGE_KEYS } from '../config/constants';
 
-// Interface pour l'utilisateur stocké dans localStorage
 interface LocalStorageUser {
   email?: string;
   username?: string;
@@ -29,25 +30,20 @@ export default function Dashboard() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.USER au lieu de 'user'
     const userData = localStorage.getItem(STORAGE_KEYS.USER);
     if (userData) {
       try {
         const parsedUser: LocalStorageUser = JSON.parse(userData);
         setCurrentUser(parsedUser);
-        console.log('✅ Utilisateur chargé depuis localStorage:', parsedUser);
       } catch (err) {
         console.error('Erreur parsing user data:', err);
         setCurrentUser(null);
       }
-    } else {
-      console.warn('❌ Aucune donnée utilisateur trouvée dans localStorage avec clé:', STORAGE_KEYS.USER);
     }
-    
+
     loadUsers();
     loadEvents();
-    
-    // Fermer le dropdown quand on clique ailleurs
+
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
@@ -71,11 +67,7 @@ export default function Dashboard() {
       setUsers(data);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        if (err.message.includes('401') || err.message.includes('token')) {
-          setUserError('Session expirée. Veuillez vous reconnecter.');
-        } else {
-          setUserError(`Erreur: ${err.message}`);
-        }
+        setUserError(`Erreur: ${err.message}`);
       } else {
         setUserError('Erreur lors du chargement des utilisateurs');
       }
@@ -94,7 +86,6 @@ export default function Dashboard() {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
       setEventError(`Erreur lors du chargement des événements: ${errorMessage}`);
-      console.error('Erreur lors du chargement des événements:', err);
       setEvents([]);
     } finally {
       setLoadingEvents(false);
@@ -102,80 +93,42 @@ export default function Dashboard() {
   };
 
   const handleDeleteUser = async (id: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-      return;
-    }
-
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) return;
     try {
       await apiService.deleteUtilisateur(id);
       await loadUsers();
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur lors de la suppression';
-      setUserError(errorMessage);
+      setUserError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
     }
   };
 
   const handleDeleteEvent = async (id: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet événement ?')) {
-      return;
-    }
-
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet événement ?')) return;
     try {
       await apiService.deleteEvenement(id);
       await loadEvents();
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur lors de la suppression';
-      setEventError(errorMessage);
+      setEventError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
     }
   };
 
-  const toggleDropdown = () => {
-    setDropdownOpen(!dropdownOpen);
-  };
+  const toggleDropdown = () => setDropdownOpen(!dropdownOpen);
 
   const handleMenuAction = (action: string) => {
     setDropdownOpen(false);
-    
     switch (action) {
-      case 'accueil':
-        navigate('/');
-        setTimeout(() => {
-          const accueilSection = document.getElementById('accueil');
-          if (accueilSection) {
-            accueilSection.scrollIntoView({ behavior: 'smooth' });
-          }
-        }, 100);
-        break;
-      case 'dashboard':
-        navigate('/dashboard');
-        break;
-      case 'evenements':
-        navigate('/dashboard/evenements');
-        break;
-      case 'inscription':
-        navigate('/events');
-        break;
-      case 'mes-reservations':
-        navigate('/mes-reservations');
-        break;
-      case 'creer':
-        navigate('/create-event');
-        break;
-      case 'statistiques':
-        navigate('/statistiques');
-        break;
-      case 'parametres':
-        navigate('/parametres');
-        break;
-      case 'gestion-utilisateurs':
-        navigate('/admin/users');
-        break;
-      default:
-        break;
+      case 'accueil': navigate('/'); break;
+      case 'dashboard': navigate('/dashboard'); break;
+      case 'evenements': navigate('/dashboard/evenements'); break;
+      case 'inscription': navigate('/events'); break;
+      case 'mes-reservations': navigate('/mes-reservations'); break;
+      case 'creer': navigate('/create-event'); break;
+      case 'statistiques': navigate('/statistiques'); break;
+      case 'parametres': navigate('/parametres'); break;
+      case 'gestion-utilisateurs': navigate('/admin/users'); break;
     }
   };
 
-  // Obtenir l'email de l'utilisateur actuel
   const getCurrentUserEmail = () => {
     if (currentUser?.email) return currentUser.email;
     if (currentUser?.username) return currentUser.username;
@@ -183,28 +136,40 @@ export default function Dashboard() {
     return 'Administrateur';
   };
 
-  // Obtenir le rôle de l'utilisateur actuel
   const getCurrentUserRole = () => {
     if (currentUser?.role) return currentUser.role;
     if (user?.roles?.length) return user.roles.join(', ');
     return 'ADMIN';
   };
 
-  // Vérifier si l'utilisateur est admin
   const isAdmin = () => {
     const role = getCurrentUserRole();
-    return role.includes('ADMIN') || currentUser?.role === 'ADMIN';
+    return role.includes('ADMIN');
   };
 
-  // Fonction pour obtenir la ville de l'adresse
-  const getEventLocation = (event: Evenement) => {
-    if (event.adresse?.ville) {
-      return event.adresse.ville;
+  // ✅ CORRECTION : lit roles[] (tableau) renvoyé par le backend Spring
+  // Le backend renvoie : { roles: [{id, role: "ADMIN", type: "..."}, ...] }
+  // et NON pas : { role: { nom: "ADMIN" } }
+  const getUserRole = (userItem: Utilisateur): string => {
+    // Nouvelle structure Spring : roles est un tableau d'objets { id, role, type }
+    if (userItem.roles && userItem.roles.length > 0) {
+      const hasAdmin = userItem.roles.some(
+        (r) => r.role === 'ADMIN' || r.nom === 'ADMIN'
+      );
+      return hasAdmin ? 'ADMIN' : 'UTILISATEUR';
     }
-    return event.adresse_id_adresse ? `Adresse #${event.adresse_id_adresse}` : '-';
+    // Ancienne structure : role est un objet { nom }
+    if (userItem.role?.nom) return userItem.role.nom;
+    if (userItem.role?.role) return userItem.role.role;
+    // Fallback par email
+    if (userItem.email === 'admin@example.com') return 'ADMIN';
+    return 'UTILISATEUR';
   };
 
-  // Fonction pour obtenir la date formatée
+  const getEventLocation = (event: Evenement) => {
+    return event.adresse?.ville || '-';
+  };
+
   const getFormattedDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('fr-FR');
@@ -213,19 +178,15 @@ export default function Dashboard() {
     }
   };
 
-  // Fonction pour vérifier si un événement est à venir
   const isEventUpcoming = (event: Evenement) => {
     try {
-      return new Date(event.date_debut) > new Date();
+      return new Date(event.dateDebut) > new Date();
     } catch {
       return false;
     }
   };
 
-  // Fonction pour compter les événements à venir
-  const countUpcomingEvents = () => {
-    return events.filter(event => isEventUpcoming(event)).length;
-  };
+  const countUpcomingEvents = () => events.filter(e => isEventUpcoming(e)).length;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -239,9 +200,7 @@ export default function Dashboard() {
                 Bienvenue, {getCurrentUserEmail()} ({getCurrentUserRole()})
               </p>
             </div>
-            
             <div className="flex items-center space-x-4">
-              {/* Menu déroulant */}
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={toggleDropdown}
@@ -252,103 +211,35 @@ export default function Dashboard() {
                   </svg>
                 </button>
 
-                {/* Dropdown Menu */}
                 {dropdownOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
                     <div className="py-2">
-                      <button
-                        onClick={() => handleMenuAction('accueil')}
-                        className="w-full text-left px-4 py-3 hover:bg-purple-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                        </svg>
-                        <span className="font-medium">🏠 Accueil</span>
-                      </button>
-
-                      <div className="border-t border-gray-100 my-1"></div>
-
-                      <button
-                        onClick={() => handleMenuAction('dashboard')}
-                        className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                        <span className="font-medium">📊 Tableau de bord</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleMenuAction('evenements')}
-                        className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="font-medium">📅 Voir les événements</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleMenuAction('inscription')}
-                        className="w-full text-left px-4 py-3 hover:bg-yellow-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        <span className="font-medium">👥 Inscription événement</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleMenuAction('mes-reservations')}
-                        className="w-full text-left px-4 py-3 hover:bg-teal-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                        <span className="font-medium">🎫 Les réservations</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleMenuAction('creer')}
-                        className="w-full text-left px-4 py-3 hover:bg-emerald-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span className="font-medium">➕ Créer un événement</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleMenuAction('statistiques')}
-                        className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                        <span className="font-medium">📊 Statistiques</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleMenuAction('parametres')}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="font-medium">⚙️ Paramètres</span>
-                      </button>
+                      {[
+                        { action: 'accueil',           label: '🏠 Accueil',               color: 'purple'  },
+                        { action: 'dashboard',          label: '📊 Tableau de bord',        color: 'blue'    },
+                        { action: 'evenements',         label: '📅 Voir les événements',    color: 'green'   },
+                        { action: 'inscription',        label: '👥 Inscription événement',  color: 'yellow'  },
+                        { action: 'mes-reservations',   label: '🎫 Les réservations',       color: 'teal'    },
+                        { action: 'creer',              label: '➕ Créer un événement',     color: 'emerald' },
+                        { action: 'statistiques',       label: '📊 Statistiques',           color: 'indigo'  },
+                        { action: 'parametres',         label: '⚙️ Paramètres',             color: 'gray'    },
+                      ].map(item => (
+                        <button
+                          key={item.action}
+                          onClick={() => handleMenuAction(item.action)}
+                          className={`w-full text-left px-4 py-3 hover:bg-${item.color}-50 transition-colors`}
+                        >
+                          <span className="font-medium">{item.label}</span>
+                        </button>
+                      ))}
 
                       {isAdmin() && (
                         <>
                           <div className="border-t border-gray-100 my-1"></div>
                           <button
                             onClick={() => handleMenuAction('gestion-utilisateurs')}
-                            className="w-full text-left px-4 py-3 hover:bg-red-50 transition-colors flex items-center"
+                            className="w-full text-left px-4 py-3 hover:bg-red-50 transition-colors"
                           >
-                            <svg className="w-5 h-5 mr-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
                             <span className="font-medium">👨‍💼 Gestion utilisateurs</span>
                           </button>
                         </>
@@ -358,7 +249,6 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Bouton Déconnexion */}
               <button
                 onClick={logout}
                 className="px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:from-red-700 hover:to-pink-700 transition-all font-medium shadow-lg"
@@ -370,7 +260,6 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         {(userError || eventError) && (
           <div className="mb-6">
@@ -387,7 +276,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Statistiques rapides */}
+        {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-lg p-6 text-center">
             <div className="text-4xl font-bold text-blue-600 mb-2">{events.length}</div>
@@ -411,11 +300,8 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-2xl font-bold text-gray-900">Liste des événements</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              {countUpcomingEvents()} événements à venir
-            </p>
+            <p className="text-sm text-gray-600 mt-1">{countUpcomingEvents()} événements à venir</p>
           </div>
-
           <div className="p-6">
             {loadingEvents ? (
               <div className="flex justify-center py-12">
@@ -426,27 +312,11 @@ export default function Dashboard() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        TITRE
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        DATE DEBUT
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        LIEU
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        PLACES
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        STATUT
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        ACTIONS
-                      </th>
+                      {['ID', 'TITRE', 'DATE DEBUT', 'LIEU', 'PLACES', 'STATUT', 'ACTIONS'].map(h => (
+                        <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -458,42 +328,30 @@ export default function Dashboard() {
                       </tr>
                     ) : (
                       events.slice(0, 5).map((event) => (
-                        <tr key={event.id_event} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {event.id_event}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                            {event.titre_event}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {getFormattedDate(event.date_debut)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {getEventLocation(event)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {event.nb_place} places
-                          </td>
+                        <tr key={event.idEvent} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{event.idEvent}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{event.titreEvent}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{getFormattedDate(event.dateDebut)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{getEventLocation(event)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{event.nbPlace} places</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                              isEventUpcoming(event)
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
+                              isEventUpcoming(event) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                             }`}>
                               {isEventUpcoming(event) ? 'À venir' : 'Terminé'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
-                              onClick={() => navigate(`/events/${event.id_event}`)}
-                              className="text-blue-600 hover:text-blue-900 hover:underline transition-colors mr-4"
+                              onClick={() => navigate(`/events/${event.idEvent}`)}
+                              className="text-blue-600 hover:text-blue-900 hover:underline mr-4"
                             >
                               Voir
                             </button>
                             {isAdmin() && (
                               <button
-                                onClick={() => handleDeleteEvent(event.id_event)}
-                                className="text-red-600 hover:text-red-900 hover:underline transition-colors"
+                                onClick={() => handleDeleteEvent(event.idEvent)}
+                                className="text-red-600 hover:text-red-900 hover:underline"
                               >
                                 Supprimer
                               </button>
@@ -523,11 +381,11 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-2xl font-bold text-gray-900">Liste des utilisateurs</h2>
+            {/* ✅ CORRECTION : utilise getUserRole() au lieu de role?.nom */}
             <p className="text-sm text-gray-600 mt-1">
-              {users.filter(u => u.role?.nom === 'ADMIN').length} administrateurs
+              {users.filter(u => getUserRole(u) === 'ADMIN').length} administrateurs
             </p>
           </div>
-
           <div className="p-6">
             {loading ? (
               <div className="flex justify-center py-12">
@@ -538,24 +396,11 @@ export default function Dashboard() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        IDENTIFIANT
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        NOM
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        PRÉNOM
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        E-MAIL
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        RÔLE
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        ACTIONS
-                      </th>
+                      {['IDENTIFIANT', 'NOM', 'PRÉNOM', 'E-MAIL', 'RÔLE', 'ACTIONS'].map(h => (
+                        <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -581,12 +426,13 @@ export default function Dashboard() {
                             {userItem.email}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {/* ✅ CORRECTION : getUserRole() lit roles[] du backend */}
                             <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                              userItem.role?.nom === 'ADMIN' || userItem.email === 'admin@example.com'
-                                ? 'bg-purple-100 text-purple-800' 
+                              getUserRole(userItem) === 'ADMIN'
+                                ? 'bg-purple-100 text-purple-800'
                                 : 'bg-blue-100 text-blue-800'
                             }`}>
-                              {userItem.role?.nom || (userItem.email === 'admin@example.com' ? 'ADMIN' : 'UTILISATEUR')}
+                              {getUserRole(userItem)}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -595,7 +441,7 @@ export default function Dashboard() {
                             ) : (
                               <button
                                 onClick={() => handleDeleteUser(userItem.id)}
-                                className="text-red-600 hover:text-red-900 hover:underline transition-colors"
+                                className="text-red-600 hover:text-red-900 hover:underline"
                               >
                                 Supprimer
                               </button>
@@ -622,21 +468,13 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="mt-12 bg-gray-800 text-white py-8">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center">
-            <p className="text-lg font-bold mb-2">CultureEvents Dashboard</p>
-            <p className="text-gray-400 text-sm">
-              Dashboard d'administration - Gestion des utilisateurs et événements
-            </p>
-            <p className="text-gray-500 text-xs mt-4">
-              {window.location.hostname}:{window.location.port}
-            </p>
-            <p className="text-gray-500 text-xs mt-2">
-              {users.length} utilisateurs • {events.length} événements • 124 réservations
-            </p>
-          </div>
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <p className="text-lg font-bold mb-2">CultureEvents Dashboard</p>
+          <p className="text-gray-400 text-sm">Dashboard d'administration</p>
+          <p className="text-gray-500 text-xs mt-4">
+            {users.length} utilisateurs • {events.length} événements • 124 réservations
+          </p>
         </div>
       </footer>
     </div>

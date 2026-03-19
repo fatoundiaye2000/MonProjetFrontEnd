@@ -6,6 +6,10 @@ export interface RegisterRequest {
   email: string;
   motDePasse: string;
   telephone?: string;
+  dateDeNaissance?: string;   // ✅ ajouté
+  role?: {                    // ✅ ajouté
+    id: number;
+  };
 }
 
 export interface LoginRequest {

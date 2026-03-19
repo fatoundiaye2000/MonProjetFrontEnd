@@ -29,21 +29,53 @@ export default function AdminUsers() {
     }
   };
 
+  // ✅ Fonction pour obtenir le rôle de l'utilisateur
+  const getUserRole = (user: Utilisateur): string => {
+    // Nouvelle structure Spring Boot : roles est un tableau
+    if (user.roles && user.roles.length > 0) {
+      const hasAdmin = user.roles.some(r => r.role === 'ADMIN' || r.nom === 'ADMIN');
+      if (hasAdmin) return 'ADMIN';
+    }
+    // Ancienne structure (pour compatibilité)
+    if (user.role?.nom === 'ADMIN' || user.role?.role === 'ADMIN') return 'ADMIN';
+    // Fallback pour l'admin système
+    if (user.email === 'admin@example.com') return 'ADMIN';
+    return 'UTILISATEUR';
+  };
+
+  // ✅ Vérifier si l'utilisateur est admin
+  const isAdmin = (user: Utilisateur): boolean => {
+    return getUserRole(user) === 'ADMIN';
+  };
+
+  // ✅ Rôle formaté pour l'affichage
+  const getDisplayRole = (user: Utilisateur): string => {
+    return isAdmin(user) ? 'Administrateur' : 'Utilisateur';
+  };
+
+  // ✅ Filtrage des utilisateurs
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
       user.nom?.toLowerCase().includes(search.toLowerCase()) ||
       user.prenom?.toLowerCase().includes(search.toLowerCase()) ||
       user.email.toLowerCase().includes(search.toLowerCase());
     
+    const userRole = getUserRole(user);
     const matchesRole = 
       selectedRole === 'ALL' || 
-      (selectedRole === 'ADMIN' && (user.role?.nom === 'ADMIN' || user.email === 'admin@example.com')) ||
-      (selectedRole === 'UTILISATEUR' && user.role?.nom !== 'ADMIN');
+      (selectedRole === 'ADMIN' && userRole === 'ADMIN') ||
+      (selectedRole === 'UTILISATEUR' && userRole === 'UTILISATEUR');
 
     return matchesSearch && matchesRole;
   });
 
-  const handleDelete = async (id: number) => {
+  // ✅ Suppression d'un utilisateur
+  const handleDelete = async (id: number, email: string) => {
+    if (email === 'admin@example.com') {
+      alert('❌ Impossible de supprimer l\'administrateur système');
+      return;
+    }
+
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
       return;
     }
@@ -55,20 +87,6 @@ export default function AdminUsers() {
     } catch (err) {
       const error = err as Error;
       alert(`❌ Erreur: ${error.message}`);
-    }
-  };
-
-  const handleRoleChange = async (id: number, newRole: string) => {
-    if (!confirm(`Changer le rôle de cet utilisateur en ${newRole} ?`)) {
-      return;
-    }
-
-    try {
-      // Ici, vous devriez appeler votre API pour changer le rôle
-      alert(`Rôle changé en ${newRole} pour l'utilisateur ${id}`);
-      await loadUsers(); // Recharger les données
-    } catch {
-      alert('❌ Erreur lors du changement de rôle');
     }
   };
 
@@ -88,7 +106,7 @@ export default function AdminUsers() {
               onClick={() => navigate('/dashboard')}
               className="px-6 py-3 border border-gray-600 text-gray-600 rounded-lg hover:bg-gray-50 transition-all font-medium"
             >
-              Retour
+              Retour au tableau de bord
             </button>
           </div>
         </div>
@@ -137,17 +155,29 @@ export default function AdminUsers() {
             </div>
           </div>
           
-          <div className="mt-4 text-sm text-gray-600">
-            {filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''} trouvé{filteredUsers.length > 1 ? 's' : ''}
+          <div className="mt-4 flex justify-between items-center">
+            <div className="text-sm text-gray-600">
+              <span className="font-semibold">{filteredUsers.length}</span> utilisateur{filteredUsers.length > 1 ? 's' : ''} trouvé{filteredUsers.length > 1 ? 's' : ''}
+            </div>
+            <div className="text-sm text-gray-600">
+              <span className="font-semibold text-purple-600">
+                {users.filter(u => isAdmin(u)).length}
+              </span> administrateur{users.filter(u => isAdmin(u)).length > 1 ? 's' : ''} •{' '}
+              <span className="font-semibold text-blue-600">
+                {users.filter(u => !isAdmin(u)).length}
+              </span> utilisateur{users.filter(u => !isAdmin(u)).length > 1 ? 's' : ''}
+            </div>
           </div>
         </div>
 
+        {/* Message d'erreur */}
         {error && (
           <div className="mb-6 p-4 bg-red-100 text-red-700 border border-red-300 rounded-lg">
             {error}
           </div>
         )}
 
+        {/* Loading */}
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -156,18 +186,7 @@ export default function AdminUsers() {
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
             {/* En-tête du tableau */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-900">Liste des utilisateurs</h2>
-                <button
-                  onClick={() => {
-                    // Fonction pour ajouter un utilisateur
-                    alert('Fonctionnalité d\'ajout d\'utilisateur - En développement');
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                >
-                  + Ajouter un utilisateur
-                </button>
-              </div>
+              <h2 className="text-xl font-bold text-gray-900">Liste des utilisateurs</h2>
             </div>
 
             {/* Tableau */}
@@ -191,9 +210,6 @@ export default function AdminUsers() {
                       Rôle
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date d'inscription
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -201,74 +217,63 @@ export default function AdminUsers() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                         Aucun utilisateur trouvé
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {user.id}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {user.nom || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {user.prenom || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {user.email}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <select
-                            value={user.role?.nom || (user.email === 'admin@example.com' ? 'ADMIN' : 'UTILISATEUR')}
-                            onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                            disabled={user.email === 'admin@example.com'}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full border ${
-                              user.role?.nom === 'ADMIN' || user.email === 'admin@example.com'
-                                ? 'bg-purple-100 text-purple-800 border-purple-300' 
-                                : 'bg-blue-100 text-blue-800 border-blue-300'
-                            }`}
-                          >
-                            <option value="ADMIN">ADMIN</option>
-                            <option value="UTILISATEUR">UTILISATEUR</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {/* Correction sans any */}
-                          {'createdAt' in user ? new Date(user.createdAt as string).toLocaleDateString('fr-FR') : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                          <button
-                            onClick={() => {
-                              // Voir le profil
-                              alert(`Voir le profil de ${user.email}`);
-                            }}
-                            className="text-blue-600 hover:text-blue-900 hover:underline transition-colors"
-                          >
-                            Voir
-                          </button>
-                          <button
-                            onClick={() => {
-                              // Modifier
-                              alert(`Modifier ${user.email}`);
-                            }}
-                            className="text-yellow-600 hover:text-yellow-900 hover:underline transition-colors"
-                          >
-                            Modifier
-                          </button>
-                          {user.email !== 'admin@example.com' && (
+                    filteredUsers.map((user) => {
+                      const isUserAdmin = isAdmin(user);
+                      const isSystemAdmin = user.email === 'admin@example.com';
+                      
+                      return (
+                        <tr key={user.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {user.id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {user.nom || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {user.prenom || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {user.email}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                              isUserAdmin
+                                ? 'bg-purple-100 text-purple-800 border border-purple-300' 
+                                : 'bg-blue-100 text-blue-800 border border-blue-300'
+                            }`}>
+                              {getDisplayRole(user)}
+                            </span>
+                            {isSystemAdmin && (
+                              <span className="ml-2 text-xs text-gray-500">
+                                (Système)
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
                             <button
-                              onClick={() => handleDelete(user.id)}
-                              className="text-red-600 hover:text-red-900 hover:underline transition-colors"
+                              onClick={() => navigate(`/admin/users/${user.id}`)}
+                              className="text-blue-600 hover:text-blue-900 hover:underline transition-colors"
                             >
-                              Supprimer
+                              Détails
                             </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                            
+                            {!isSystemAdmin && (
+                              <button
+                                onClick={() => handleDelete(user.id, user.email)}
+                                className="text-red-600 hover:text-red-900 hover:underline transition-colors"
+                              >
+                                Supprimer
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -286,21 +291,21 @@ export default function AdminUsers() {
           </div>
           <div className="bg-white rounded-xl shadow-lg p-6 text-center">
             <div className="text-2xl font-bold text-purple-600 mb-2">
-              {users.filter(u => u.role?.nom === 'ADMIN' || u.email === 'admin@example.com').length}
+              {users.filter(u => isAdmin(u)).length}
             </div>
             <div className="text-gray-700">Administrateurs</div>
           </div>
           <div className="bg-white rounded-xl shadow-lg p-6 text-center">
             <div className="text-2xl font-bold text-green-600 mb-2">
-              {users.filter(u => u.role?.nom !== 'ADMIN' && u.email !== 'admin@example.com').length}
+              {users.filter(u => !isAdmin(u)).length}
             </div>
             <div className="text-gray-700">Utilisateurs normaux</div>
           </div>
           <div className="bg-white rounded-xl shadow-lg p-6 text-center">
-            <div className="text-2xl font-bold text-red-600 mb-2">
-              {users.filter(u => !u.email.includes('@example.com')).length}
+            <div className="text-2xl font-bold text-orange-600 mb-2">
+              {users.filter(u => u.email === 'admin@example.com').length}
             </div>
-            <div className="text-gray-700">Utilisateurs actifs</div>
+            <div className="text-gray-700">Admin système</div>
           </div>
         </div>
       </main>

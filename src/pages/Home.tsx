@@ -2,1235 +2,623 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import eventService from '../services/event.service';
 import uploadService from '../services/upload.service';
-import { Evenement } from '../types/event.types';
-import { STORAGE_KEYS } from '../config/constants'; // ✅ IMPORTATION AJOUTÉE
+import { Evenement, TypeEventDTO, AdresseDTO, TarifDTO, UserDTO } from '../types/event.types';
+import { STORAGE_KEYS } from '../config/constants';
+
+// ── Evenix color palette ──────────────────────────────────────────────────────
+// Primary:    #f97316 (orange)   #ea580c (dark orange)
+// Secondary:  #fb923c (soft)     #fdba74 (light)
+// Background: #fff8f0 (cream)    #fef3e6 (warm cream)
+// Accent:     #f59e0b (amber)    #fbbf24 (gold)
+// Text:       #1c0a00 (dark)     #78350f (brown)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Types locaux ─────────────────────────────────────────────────────────────
+interface StoredUser {
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  username?: string;
+  role?: string;
+  roles?: Array<{ role?: string; nom?: string }>;
+}
+
+interface FooterLink {
+  label: string;
+  href?: string;
+  fn?: () => void;
+}
+
+interface FooterCol {
+  title: string;
+  links: FooterLink[];
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
+  const [loading, setLoading]             = useState(true);
+  const [isLoggedIn, setIsLoggedIn]       = useState(false);
+  const [userName, setUserName]           = useState('');
   const [backendImages, setBackendImages] = useState<string[]>([]);
-  const [backendInfo, setBackendInfo] = useState<{folder: string; count: number} | null>(null);
+  const [mounted, setMounted]             = useState(false);
+  const [scrolled, setScrolled]           = useState(false);
+  const [activeCard, setActiveCard]       = useState<number | null>(null);
+  const [menuOpen, setMenuOpen]           = useState(false);
   const navigate = useNavigate();
+  const menuRef  = useRef<HTMLDivElement>(null);
 
-  // États pour le menu hamburger
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Événements démo fixes avec dates en 2026 AVEC VOS VRAIES IMAGES
+  // ── Demo events — camelCase conforme à event.types.ts ────────────────────
   const demoEvents: Evenement[] = [
     {
-      id_event: 1,
-      titre_event: "Festival de Jazz International",
+      idEvent: 1,
+      titreEvent: "Festival de Jazz International",
       description: "Découvrez les plus grands noms du jazz dans un cadre unique. Trois jours de concerts exceptionnels avec des artistes internationaux.",
-      date_debut: new Date('2026-06-15T18:00:00').toISOString(),
-      date_fin: new Date('2026-06-17T23:00:00').toISOString(),
-      nb_place: 250,
-      // 🔥 VOTRE IMAGE RÉELLE DU BACKEND
+      dateDebut: new Date('2026-06-15T18:00:00').toISOString(),
+      dateFin:   new Date('2026-06-17T23:00:00').toISOString(),
+      nbPlace: 250,
       image: "event_1767732541267_a1d12c20.png",
-      adresse_id_adresse: 1,
-      organisateur_id_user: 1,
-      tarif_id_tarif: 1,
-      type_event_id_type_event: 1,
-      tarif: { 
-        id_tarif: 1,
-        montant: 35,
-        devise: "EUR",
-        type_tarif: "Standard"
-      },
-      type_event: { 
-        id_type_event: 1,
-        nom_type: "Festival",
-        description: "Festivals culturels"
-      },
-      adresse: {
-        id_adresse: 1,
-        ville: "Paris",
-        code_postal: "75015",
-        pays: "France"
-      },
-      organisateur: {
-        id_user: 1,
-        nom: "Admin",
-        prenom: "Culture",
-        email: "admin@cultureevents.com"
-      }
+      tarif:       { idTarif:1, prix:35,  isPromotion:false } as TarifDTO,
+      typeEvent:   { idTypeEvent:1, nomType:"Festival"   } as TypeEventDTO,
+      adresse:     { idAdresse:1, ville:"Paris",     codePostal:"75015" } as AdresseDTO,
+      organisateur:{ idUser:1,   nom:"Admin", prenom:"Culture", email:"admin@cultureevents.com" } as UserDTO,
     },
     {
-      id_event: 2,
-      titre_event: "Exposition d'Art Contemporain",
-      description: "Une collection exceptionnelle d'œuvres d'œuvres d'art contemporain d'artistes émergents et confirmés.",
-      date_debut: new Date('2026-03-10T10:00:00').toISOString(),
-      date_fin: new Date('2026-05-10T18:00:00').toISOString(),
-      nb_place: 150,
-      // 🔥 VOTRE IMAGE RÉELLE DU BACKEND
+      idEvent: 2,
+      titreEvent: "Exposition d'Art Contemporain",
+      description: "Une collection exceptionnelle d'œuvres d'art contemporain d'artistes émergents et confirmés du monde entier.",
+      dateDebut: new Date('2026-03-10T10:00:00').toISOString(),
+      dateFin:   new Date('2026-05-10T18:00:00').toISOString(),
+      nbPlace: 150,
       image: "event_1767732256076_7594c16a.jpg",
-      adresse_id_adresse: 2,
-      organisateur_id_user: 1,
-      tarif_id_tarif: 2,
-      type_event_id_type_event: 2,
-      tarif: { 
-        id_tarif: 2,
-        montant: 0,
-        devise: "EUR",
-        type_tarif: "Gratuit"
-      },
-      type_event: { 
-        id_type_event: 2,
-        nom_type: "Exposition",
-        description: "Expositions artistiques"
-      },
-      adresse: {
-        id_adresse: 2,
-        ville: "Lyon",
-        code_postal: "69001",
-        pays: "France"
-      },
-      organisateur: {
-        id_user: 1,
-        nom: "Admin",
-        prenom: "Culture",
-        email: "admin@cultureevents.com"
-      }
+      tarif:       { idTarif:2, prix:0,   isPromotion:false } as TarifDTO,
+      typeEvent:   { idTypeEvent:2, nomType:"Exposition" } as TypeEventDTO,
+      adresse:     { idAdresse:2, ville:"Lyon",      codePostal:"69001" } as AdresseDTO,
+      organisateur:{ idUser:1,   nom:"Admin", prenom:"Culture", email:"admin@cultureevents.com" } as UserDTO,
     },
     {
-      id_event: 3,
-      titre_event: "Spectacle de Danse Moderne",
-      description: "Une performance captivante mêlant danse contemporaine et nouvelles technologies.",
-      date_debut: new Date('2026-09-22T20:00:00').toISOString(),
-      date_fin: new Date('2026-09-22T22:00:00').toISOString(),
-      nb_place: 200,
-      // 🔥 VOTRE IMAGE RÉELLE DU BACKEND
+      idEvent: 3,
+      titreEvent: "Spectacle de Danse Moderne",
+      description: "Une performance captivante mêlant danse contemporaine et nouvelles technologies dans un spectacle inoubliable.",
+      dateDebut: new Date('2026-09-22T20:00:00').toISOString(),
+      dateFin:   new Date('2026-09-22T22:00:00').toISOString(),
+      nbPlace: 200,
       image: "event_1767732304324_ee1f3d49.jpg",
-      adresse_id_adresse: 3,
-      organisateur_id_user: 1,
-      tarif_id_tarif: 3,
-      type_event_id_type_event: 3,
-      tarif: { 
-        id_tarif: 3,
-        montant: 25,
-        devise: "EUR",
-        type_tarif: "Standard"
-      },
-      type_event: { 
-        id_type_event: 3,
-        nom_type: "Spectacle",
-        description: "Spectacles vivants"
-      },
-      adresse: {
-        id_adresse: 3,
-        ville: "Marseille",
-        code_postal: "13001",
-        pays: "France"
-      },
-      organisateur: {
-        id_user: 1,
-        nom: "Admin",
-        prenom: "Culture",
-        email: "admin@cultureevents.com"
-      }
-    }
+      tarif:       { idTarif:3, prix:25,  isPromotion:false } as TarifDTO,
+      typeEvent:   { idTypeEvent:3, nomType:"Spectacle"  } as TypeEventDTO,
+      adresse:     { idAdresse:3, ville:"Marseille", codePostal:"13001" } as AdresseDTO,
+      organisateur:{ idUser:1,   nom:"Admin", prenom:"Culture", email:"admin@cultureevents.com" } as UserDTO,
+    },
   ];
 
-  // Récupérer les infos utilisateur depuis localStorage
-  const getUser = () => {
-    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.USER
-    const userStr = localStorage.getItem(STORAGE_KEYS.USER);
-    return userStr ? JSON.parse(userStr) : null;
+  // ── Helpers stockage ─────────────────────────────────────────────────────
+  const getStoredUser = (): StoredUser | null => {
+    try { const s = localStorage.getItem(STORAGE_KEYS.USER); return s ? JSON.parse(s) : null; }
+    catch { return null; }
   };
+  const storedUser = getStoredUser();
 
-  const user = getUser();
-  const isAdmin = user?.role === 'ADMIN';
-
-  // 🔥 Fermer le dropdown quand on clique ailleurs
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdownOpen(false);
-      }
-    };
-
-    if (dropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [dropdownOpen]);
-
-  const checkAuthStatus = () => {
-    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.TOKEN et STORAGE_KEYS.USER
-    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-    const user = localStorage.getItem(STORAGE_KEYS.USER);
-    
-    if (token && user) {
-      try {
-        const userData = JSON.parse(user);
-        setIsLoggedIn(true);
-        setUserName(userData.nom || userData.email || 'Utilisateur');
-      } catch (error) {
-        console.error('Erreur de parsing user data:', error);
-        setIsLoggedIn(false);
-        setUserName('');
-      }
-    } else {
-      setIsLoggedIn(false);
-      setUserName('');
-    }
-  };
+  // ✅ isAdmin : compatible nouvelle structure Spring (roles[]) et ancienne (role string)
+  const isAdmin = (() => {
+    if (!storedUser) return false;
+    if (Array.isArray(storedUser.roles) && storedUser.roles.length > 0)
+      return storedUser.roles.some(r => r.role === 'ADMIN' || r.nom === 'ADMIN');
+    if (typeof storedUser.role === 'string') return storedUser.role === 'ADMIN';
+    if (storedUser.email === 'admin@example.com') return true;
+    return false;
+  })();
 
   useEffect(() => {
-    checkAuthStatus();
-
-    let isMounted = true;
-
-    // Charger les événements
-    const loadEvents = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const data = await eventService.getAllEvents();
-        
-        if (isMounted) {
-          if (Array.isArray(data) && data.length > 0) {
-            const validEvents = data.filter(event => 
-              event.titre_event && event.titre_event.trim() !== ''
-            );
-            console.log('✅ Événements chargés:', validEvents.length);
-          } else {
-            console.warn('Aucun événement valide trouvé');
-          }
-        }
-      } catch (err: unknown) {
-        if (isMounted) {
-          const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des événements';
-          setError(errorMessage);
-          console.error('Erreur de chargement:', err);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    // Charger les images et infos du backend
-    const loadBackendImages = async () => {
-      try {
-        console.log('🔄 Chargement images backend...');
-        
-        // Récupérer les infos détaillées
-        const info = await uploadService.getFilesInfo();
-        if (info && isMounted) {
-          setBackendInfo({
-            folder: info.folder,
-            count: info.count
-          });
-        }
-        
-        // Récupérer la liste des images
-        const images = await uploadService.getAllImages();
-        
-        if (isMounted) {
-          if (images.length > 0) {
-            setBackendImages(images);
-            console.log(`✅ ${images.length} images réelles chargées depuis le backend`);
-          } else {
-            console.log('⚠️ Utilisation images par défaut');
-            setBackendImages(uploadService.BACKEND_IMAGES);
-          }
-        }
-      } catch (err) {
-        console.error('❌ Erreur chargement images:', err);
-        if (isMounted) {
-          setBackendImages(uploadService.BACKEND_IMAGES);
-        }
-      }
-    };
-
-    loadEvents();
-    loadBackendImages();
-
-    return () => {
-      isMounted = false;
-    };
+    setMounted(true);
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const handleDropdownToggle = () => {
-    setDropdownOpen(!dropdownOpen);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
+  const checkAuth = () => {
+    const tok = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    const usr = localStorage.getItem(STORAGE_KEYS.USER);
+    if (tok && usr) {
+      try {
+        const d: StoredUser = JSON.parse(usr);
+        setIsLoggedIn(true);
+        // ✅ Affiche nom, prénom, username ou email — dans cet ordre de priorité
+        setUserName(d.nom || d.prenom || d.username || d.email || 'Utilisateur');
+      } catch { setIsLoggedIn(false); setUserName(''); }
+    } else { setIsLoggedIn(false); setUserName(''); }
   };
 
-  // Vérifier si l'utilisateur a un token valide
-  const isAuthenticated = () => {
-    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.TOKEN
-    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-    return !!token;
+  useEffect(() => {
+    checkAuth();
+    let alive = true;
+    (async () => { try { setLoading(true); await eventService.getAllEvents(); } catch { /* ignore */ } finally { if (alive) setLoading(false); } })();
+    (async () => {
+      try { const imgs = await uploadService.getAllImages(); if (alive) setBackendImages(imgs.length > 0 ? imgs : uploadService.BACKEND_IMAGES); }
+      catch { if (alive) setBackendImages(uploadService.BACKEND_IMAGES); }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const isAuth  = () => !!localStorage.getItem(STORAGE_KEYS.TOKEN);
+  const goGuard = (path: string) => { if (!isAuth()) navigate('/login'); else navigate(path); setMenuOpen(false); };
+  const doLogout = () => {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN); localStorage.removeItem(STORAGE_KEYS.USER);
+    setIsLoggedIn(false); setUserName(''); navigate('/'); setMenuOpen(false);
   };
 
-  // Fonction pour gérer la navigation avec vérification d'authentification
-  const handleProtectedNavigate = (path: string) => {
-    if (!isAuthenticated()) {
-      // Si pas authentifié, rediriger vers login
-      navigate('/login');
-      setDropdownOpen(false);
-    } else {
-      // Si authentifié, naviguer normalement
-      navigate(path);
-      setDropdownOpen(false);
-    }
-  };
-
-  const handleLogout = () => {
-    // ✅ CORRIGÉ: Utilisez STORAGE_KEYS.TOKEN et STORAGE_KEYS.USER
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.USER);
-    setIsLoggedIn(false);
-    setUserName('');
-    navigate('/');
-    setDropdownOpen(false);
-  };
-
-  // 🔥 FONCTION CORRIGÉE : Utilise UNIQUEMENT vos images réelles du backend
-  const getEventImage = useCallback((event: Evenement): string => {
-    console.log(`🖼️ Recherche image pour: ${event.titre_event}`);
-    
-    // 1. Si l'événement a déjà une image
-    if (event.image && event.image.trim() !== '') {
-      const url = uploadService.getImageUrl(event.image);
-      console.log(`   → Image spécifique: ${event.image}`);
-      return url;
-    }
-    
-    // 2. Vérifier si l'image existe dans les images du backend
+  const getImg = useCallback((ev: Evenement): string => {
+    if (ev.image?.trim()) return uploadService.getImageUrl(ev.image);
     if (backendImages.length > 0) {
-      // Chercher une image avec un nom similaire
-      const similarImage = backendImages.find(img => 
-        img.toLowerCase().includes(event.type_event?.nom_type?.toLowerCase() || '') ||
-        img.toLowerCase().includes(event.titre_event?.toLowerCase().split(' ')[0] || '')
-      );
-      
-      if (similarImage) {
-        console.log(`   → Image similaire trouvée: ${similarImage}`);
-        return uploadService.getImageUrl(similarImage);
-      }
+      const found = backendImages.find(i => i.toLowerCase().includes(ev.typeEvent?.nomType?.toLowerCase() ?? ''));
+      if (found) return uploadService.getImageUrl(found);
     }
-    
-    // 3. Basé sur le type d'événement (avec vos images réelles du backend)
-    const typeName = event.type_event?.nom_type || '';
-    const title = event.titre_event?.toLowerCase() || '';
-    
-    console.log(`   → Type: ${typeName}, Titre: ${title}`);
-    
-    // Mapping avec vos VRAIES images du backend
-    if (typeName.includes('Festival') || title.includes('festival') || title.includes('jazz')) {
-      console.log('   → Festival → image festival');
-      return uploadService.getImageUrl("event_1767732256076_7594c16a.jpg");
-    }
-    if (typeName.includes('Exposition') || title.includes('exposition') || title.includes('art')) {
-      console.log('   → Exposition → image exposition');
-      return uploadService.getImageUrl("event_1767732541267_a1d12c20.png");
-    }
-    if (typeName.includes('Spectacle') || title.includes('spectacle') || title.includes('danse')) {
-      console.log('   → Spectacle → image spectacle');
-      return uploadService.getImageUrl("event_1767732304324_ee1f3d49.jpg");
-    }
-    if (typeName.includes('Concert') || title.includes('concert')) {
-      console.log('   → Concert → image concert');
-      return uploadService.getImageUrl("event_1767732568405_8b853f8f.jpg");
-    }
-    
-    // 4. Image aléatoire de VOTRE collection réelle du backend
-    const randomImage = uploadService.getRandomBackendImage();
-    console.log(`   → Image aléatoire: ${randomImage}`);
-    return randomImage;
+    return uploadService.getRandomBackendImage();
   }, [backendImages]);
 
-  // 🔥 GESTION D'ERREUR CORRIGÉE : Fallback sur VOS images réelles du backend
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    const target = e.target as HTMLImageElement;
-    console.warn('❌ Erreur chargement image, fallback...');
-    
-    // FALLBACK SUR VOTRE BACKEND SPRING BOOT
-    const fallbackImage = uploadService.getRandomBackendImage();
-    target.src = fallbackImage;
-    target.onerror = null; // Éviter les boucles infinies
+  const onImgErr = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const t = e.target as HTMLImageElement; t.src = uploadService.getRandomBackendImage(); t.onerror = null;
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      if (!dateString || dateString.trim() === '') {
-        return 'Date non disponible';
-      }
-      
-      const date = new Date(dateString);
-      
-      if (isNaN(date.getTime())) {
-        return 'Date non disponible';
-      }
-      
-      return date.toLocaleDateString('fr-FR', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-    } catch {
-      return 'Date non disponible';
-    }
+  const fmtDate = (d: string) => {
+    try { const dt = new Date(d); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' }); }
+    catch { return ''; }
+  };
+  const fmtTime = (d: string) => {
+    try { const dt = new Date(d); return isNaN(dt.getTime()) ? '' : `${dt.getHours().toString().padStart(2,'0')}h${dt.getMinutes().toString().padStart(2,'0')}`; }
+    catch { return ''; }
   };
 
-  const formatTime = (dateString: string) => {
-    try {
-      if (!dateString || dateString.trim() === '') {
-        return '';
-      }
-      
-      const date = new Date(dateString);
-      
-      if (isNaN(date.getTime())) {
-        return '';
-      }
-      
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      
-      return `${hours}h${minutes}`;
-    } catch {
-      return '';
-    }
+  // ✅ tarif.prix (conforme TarifDTO) — plus tarif.montant
+  const fmtTarif = (ev: Evenement) => {
+    if (!ev.tarif) return 'N/A';
+    return (ev.tarif.prix === 0 || ev.tarif.prix === undefined) ? 'Gratuit' : `${ev.tarif.prix}€`;
   };
 
-  const displayTarif = (event: Evenement) => {
-    if (event.tarif) {
-      if (event.tarif.montant === 0 || event.tarif.montant === undefined) {
-        return 'Gratuit';
-      }
-      return `${event.tarif.montant}€`;
-    }
-    
-    return 'Tarif non spécifié';
-  };
+  // ── Evenix palette ────────────────────────────────────────────────────────
+  const eventPalette = [
+    { from:'#f97316', to:'#ea580c', shadow:'rgba(249,115,22,0.35)' },
+    { from:'#f59e0b', to:'#f97316', shadow:'rgba(245,158,11,0.35)' },
+    { from:'#fb923c', to:'#f59e0b', shadow:'rgba(251,146,60,0.35)' },
+  ];
 
-  const serviceCategories = [
-    {
-      icon: "🎭",
-      title: "Festivals Culturels",
-      description: "Festivals thématiques : musique, théâtre, danse, arts visuels",
-      type: "Festival",
-      color: "from-purple-500 to-pink-500",
-      image: "event_1767732256076_7594c16a.jpg"
-    },
-    {
-      icon: "🎵",
-      title: "Concerts & Spectacles",
-      description: "Concerts en plein air, spectacles vivants, théâtre, danse contemporaine",
-      type: "Concert",
-      color: "from-blue-500 to-cyan-500",
-      image: "event_1767732568405_8b853f8f.jpg"
-    },
-    {
-      icon: "🎨",
-      title: "Arts & Expositions",
-      description: "Expositions artistiques, photographie, arts plastiques, installations",
-      type: "Exposition",
-      color: "from-green-500 to-emerald-500",
-      image: "event_1767732541267_a1d12c20.png"
-    },
-    {
-      icon: "💼",
-      title: "Événements Entreprises",
-      description: "Team building culturel, soirées de gala, lancements de produits",
-      type: "Conférence",
-      color: "from-orange-500 to-red-500",
-      image: "event_1767731725433_f04f6f9c.jpg"
-    },
-    {
-      icon: "👥",
-      title: "Ateliers Participatifs",
-      description: "Ateliers danse, chant, peinture, création artistique pour tous niveaux",
-      type: "Atelier",
-      color: "from-yellow-500 to-amber-500",
-      image: "event_1767732304324_ee1f3d49.jpg"
-    },
-    {
-      icon: "🎤",
-      title: "Conférences Culturelles",
-      description: "Tables rondes, conférences, débats sur des thématiques culturelles",
-      type: "Conférence",
-      color: "from-indigo-500 to-purple-500",
-      image: "event_1767731725433_f04f6f9c.jpg"
-    }
+  const serviceList = [
+    { icon:'🎭', title:'Festivals Culturels',     desc:'Festivals thématiques : musique, théâtre, danse, arts visuels pour tous',  tag:'Festival',   from:'#f97316', to:'#ea580c' },
+    { icon:'🎵', title:'Concerts & Spectacles',   desc:'Concerts en plein air, spectacles vivants, théâtre, danse contemporaine',   tag:'Concert',    from:'#f59e0b', to:'#f97316' },
+    { icon:'🎨', title:'Arts & Expositions',      desc:'Expositions artistiques, photographie, arts plastiques, installations',     tag:'Exposition', from:'#fb923c', to:'#f59e0b' },
+    { icon:'💼', title:'Événements Entreprises',  desc:'Team building culturel, soirées de gala, lancements de produits',           tag:'Conférence', from:'#ea580c', to:'#dc2626' },
+    { icon:'👥', title:'Ateliers Participatifs',  desc:'Ateliers danse, chant, peinture, création artistique pour tous niveaux',    tag:'Atelier',    from:'#f97316', to:'#f59e0b' },
+    { icon:'🎤', title:'Conférences Culturelles', desc:'Tables rondes, conférences, débats sur des thématiques culturelles',         tag:'Conférence', from:'#f59e0b', to:'#ea580c' },
+  ];
+
+  const menuItems = [
+    { emoji:'🏠', label:'Accueil',              from:'#f97316', to:'#fb923c', action: () => { document.getElementById('accueil')?.scrollIntoView({behavior:'smooth'}); setMenuOpen(false); } },
+    { emoji:'📊', label:'Tableau de bord',       from:'#f97316', to:'#ea580c', action: () => goGuard('/dashboard') },
+    { emoji:'📅', label:'Voir les événements',   from:'#f59e0b', to:'#f97316', action: () => goGuard('/events') },
+    { emoji:'👥', label:'Inscription événement', from:'#fb923c', to:'#f59e0b', action: () => goGuard('/events') },
+    { emoji:'🎫', label:'Les réservations',      from:'#ea580c', to:'#f97316', action: () => goGuard('/mes-reservations') },
+    { emoji:'➕', label:'Créer un événement',    from:'#f97316', to:'#f59e0b', action: () => goGuard('/create-event') },
+    { emoji:'📈', label:'Statistiques',          from:'#f59e0b', to:'#ea580c', action: () => goGuard('/statistiques') },
+    { emoji:'⚙️', label:'Paramètres',            from:'#78350f', to:'#92400e', action: () => goGuard('/parametres') },
+  ];
+
+  // ── Footer columns ────────────────────────────────────────────────────────
+  const footerCols: FooterCol[] = [
+    { title:'Navigation', links:[
+      { label:'Accueil',       fn: () => document.getElementById('accueil')?.scrollIntoView({behavior:'smooth'}) },
+      { label:'Événements',    href:'#evenements' },
+      { label:'Services',      href:'#services' },
+      { label:'Tableau de bord', fn: () => goGuard('/dashboard') },
+    ]},
+    { title:'Événements', links:[
+      { label:'Voir tous',         fn: () => goGuard('/events') },
+      { label:'Créer',             fn: () => goGuard('/create-event') },
+      { label:'Mes réservations',  fn: () => goGuard('/mes-reservations') },
+      { label:'Connexion',         fn: () => navigate('/login') },
+    ]},
+    { title:'Technique', links:[
+      { label:'React + TypeScript' },
+      { label:'Spring Boot 3.5.0' },
+      { label:'MySQL 5.7.24' },
+    ]},
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      {/* Navigation */}
-      <nav className="bg-white/95 backdrop-blur-md shadow-lg sticky top-0 z-50 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            {/* Logo */}
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-xl">CE</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                  CultureEvents
-                </h1>
-                <p className="text-xs text-gray-500">Gestion Événementielle Culturelle</p>
-              </div>
-            </div>
+    <div style={{ fontFamily:"'DM Sans',sans-serif", background:'#fff8f0', minHeight:'100vh' }}>
 
-            {/* Navigation Desktop */}
-            <div className="hidden lg:flex items-center space-x-4">
-              {/* Navigation principale */}
-              <div className="flex items-center space-x-6">
-                <button
-                  onClick={() => {
-                    const accueilSection = document.getElementById('accueil');
-                    if (accueilSection) {
-                      accueilSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }}
-                  className="text-gray-700 hover:text-purple-600 font-medium transition-colors px-3 py-2"
-                >
-                  Accueil
-                </button>
-                <a href="#evenements" className="text-gray-700 hover:text-purple-600 font-medium transition-colors px-3 py-2">Événements</a>
-                <a href="#services" className="text-gray-700 hover:text-purple-600 font-medium transition-colors px-3 py-2">Services culturels</a>
-              </div>
+      {/* ══════════ NAVBAR ══════════ */}
+      <nav style={{
+        position:'sticky', top:0, zIndex:100,
+        background: scrolled ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.88)',
+        backdropFilter:'blur(20px)',
+        borderBottom:`1px solid ${scrolled ? 'rgba(249,115,22,0.20)' : 'rgba(249,115,22,0.10)'}`,
+        boxShadow: scrolled ? '0 4px 32px rgba(249,115,22,0.12)' : 'none',
+        transition:'all 0.3s ease',
+      }}>
+        <div style={{ maxWidth:1280, margin:'0 auto', padding:'0 24px', display:'flex', alignItems:'center', justifyContent:'space-between', height:72 }}>
 
-              {/* 🔥 MENU HAMBURGER UNIQUE AVEC TOUTES LES OPTIONS */}
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={handleDropdownToggle}
-                  className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg ml-4"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-
-                {/* Dropdown Menu COMPLET */}
-                {dropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
-                    <div className="py-2">
-                      {/* Accueil */}
-                      <button
-                        onClick={() => {
-                          const accueilSection = document.getElementById('accueil');
-                          if (accueilSection) {
-                            accueilSection.scrollIntoView({ behavior: 'smooth' });
-                          }
-                          setDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-purple-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                        </svg>
-                        <span className="font-medium">🏠 Accueil</span>
-                      </button>
-
-                      <div className="border-t border-gray-100 my-1"></div>
-
-                      {/* Tableau de bord */}
-                      <button
-                        onClick={() => handleProtectedNavigate('/dashboard')}
-                        className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                        <span className="font-medium">📊 Tableau de bord</span>
-                      </button>
-
-                      {/* Voir les événements */}
-                      <button
-                        onClick={() => handleProtectedNavigate('/dashboard/evenements')}
-                        className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="font-medium">📅 Voir les événements</span>
-                      </button>
-
-                      {/* Inscription */}
-                      <button
-                        onClick={() => handleProtectedNavigate('/events')}
-                        className="w-full text-left px-4 py-3 hover:bg-yellow-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        <span className="font-medium">👥 Inscription événement</span>
-                      </button>
-
-                      {/* Les réservations */}
-                      <button
-                        onClick={() => handleProtectedNavigate('/mes-reservations')}
-                        className="w-full text-left px-4 py-3 hover:bg-teal-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                        <span className="font-medium">🎫 Les réservations</span>
-                      </button>
-
-                      {/* Créer un événement */}
-                      <button
-                        onClick={() => handleProtectedNavigate('/create-event')}
-                        className="w-full text-left px-4 py-3 hover:bg-emerald-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span className="font-medium">➕ Créer un événement</span>
-                      </button>
-
-                      {/* Statistiques */}
-                      <button
-                        onClick={() => handleProtectedNavigate('/statistiques')}
-                        className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                        <span className="font-medium">📊 Statistiques</span>
-                      </button>
-
-                      {/* Paramètres */}
-                      <button
-                        onClick={() => handleProtectedNavigate('/parametres')}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center"
-                      >
-                        <svg className="w-5 h-5 mr-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="font-medium">⚙️ Paramètres</span>
-                      </button>
-
-                      {/* Gestion utilisateurs (uniquement pour admin) */}
-                      {isAdmin && (
-                        <>
-                          <div className="border-t border-gray-100 my-1"></div>
-                          <button
-                            onClick={() => handleProtectedNavigate('/admin/users')}
-                            className="w-full text-left px-4 py-3 hover:bg-red-50 transition-colors flex items-center"
-                          >
-                            <svg className="w-5 h-5 mr-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="font-medium">👨‍💼 Gestion utilisateurs</span>
-                          </button>
-                        </>
-                      )}
-
-                      {/* Déconnexion/Connexion */}
-                      <div className="border-t border-gray-100 my-1"></div>
-                      {user ? (
-                        <button
-                          onClick={() => {
-                            handleLogout();
-                            setDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-4 py-3 hover:bg-red-50 transition-colors flex items-center text-red-600"
-                        >
-                          <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                          </svg>
-                          <span className="font-medium">🚪 Déconnexion</span>
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => {
-                              navigate('/login');
-                              setDropdownOpen(false);
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors flex items-center text-green-600"
-                          >
-                            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                            </svg>
-                            <span className="font-medium">🔑 Connexion</span>
-                          </button>
-                          
-                          <button
-                            onClick={() => {
-                              navigate('/register');
-                              setDropdownOpen(false);
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center text-blue-600"
-                          >
-                            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                            </svg>
-                            <span className="font-medium">📝 Inscription</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Mobile menu button */}
-            <div className="lg:hidden">
-              <button 
-                onClick={handleDropdownToggle}
-                className="p-2 rounded-lg hover:bg-gray-100"
-              >
-                <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+          {/* Logo */}
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:44, height:44, borderRadius:14, background:'linear-gradient(135deg,#f97316,#ea580c)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:17, color:'#fff', boxShadow:'0 6px 20px rgba(249,115,22,0.45)', flexShrink:0 }}>CE</div>
+            <div>
+              <div style={{ fontWeight:900, fontSize:20, background:'linear-gradient(135deg,#f97316,#ea580c)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', lineHeight:1.2 }}>CultureEvents</div>
+              <div style={{ fontSize:11, color:'#c2410c', fontWeight:600 }}>Gestion Événementielle</div>
             </div>
           </div>
 
-          {/* Menu mobile */}
-          {dropdownOpen && (
-            <div className="lg:hidden border-t border-gray-200 pt-4 pb-4">
-              <div className="space-y-2">
-                {/* Navigation principale mobile */}
-                <button
-                  onClick={() => {
-                    const accueilSection = document.getElementById('accueil');
-                    if (accueilSection) {
-                      accueilSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                    setDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 bg-purple-100 text-purple-700 rounded-lg font-medium flex items-center"
-                >
-                  🏠 Accueil
-                </button>
-                
-                <a 
-                  href="#evenements" 
-                  onClick={() => setDropdownOpen(false)}
-                  className="w-full text-left px-4 py-3 border border-purple-600 text-purple-600 rounded-lg font-medium flex items-center"
-                >
-                  📅 Événements
-                </a>
-                
-                <a 
-                  href="#services" 
-                  onClick={() => setDropdownOpen(false)}
-                  className="w-full text-left px-4 py-3 border border-blue-600 text-blue-600 rounded-lg font-medium flex items-center"
-                >
-                  🎨 Services culturels
-                </a>
+          {/* Desktop nav */}
+          <div className="nav-desktop">
+            {[
+              { label:'Accueil',    fn: () => document.getElementById('accueil')?.scrollIntoView({behavior:'smooth'}) },
+              { label:'Événements', href:'#evenements' },
+              { label:'Services',   href:'#services' },
+            ].map(lk => lk.href
+              ? <a key={lk.label} href={lk.href} className="navpill">{lk.label}</a>
+              : <button key={lk.label} onClick={lk.fn} className="navpill">{lk.label}</button>
+            )}
+          </div>
 
-                <div className="border-t border-gray-100 my-2"></div>
+          {/* Right */}
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            {!isLoggedIn && (
+              <Link to="/login" className="nav-desktop" style={{ padding:'10px 20px', borderRadius:12, fontSize:14, fontWeight:700, color:'#c2410c', background:'rgba(249,115,22,0.09)', border:'2px solid rgba(249,115,22,0.25)', textDecoration:'none', transition:'all 0.2s', whiteSpace:'nowrap' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background='rgba(249,115,22,0.18)'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background='rgba(249,115,22,0.09)'}>
+                Connexion
+              </Link>
+            )}
 
-                {/* Options du menu hamburger pour mobile */}
-                <button
-                  onClick={() => handleProtectedNavigate('/dashboard')}
-                  className="w-full text-left px-4 py-3 border border-blue-600 text-blue-600 rounded-lg font-medium flex items-center"
-                >
-                  📊 Tableau de bord
-                </button>
-                
-                <button
-                  onClick={() => handleProtectedNavigate('/dashboard/evenements')}
-                  className="w-full text-left px-4 py-3 border border-green-600 text-green-600 rounded-lg font-medium flex items-center"
-                >
-                  📅 Voir les événements
-                </button>
-                
-                <button
-                  onClick={() => handleProtectedNavigate('/events')}
-                  className="w-full text-left px-4 py-3 border border-yellow-600 text-yellow-600 rounded-lg font-medium flex items-center"
-                >
-                  👥 Inscription événement
-                </button>
-                
-                <button
-                  onClick={() => handleProtectedNavigate('/mes-reservations')}
-                  className="w-full text-left px-4 py-3 border border-teal-600 text-teal-600 rounded-lg font-medium flex items-center"
-                >
-                  🎫 Les réservations
-                </button>
-                
-                <button
-                  onClick={() => handleProtectedNavigate('/create-event')}
-                  className="w-full text-left px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg font-medium flex items-center"
-                >
-                  ➕ Créer événement
-                </button>
-                
-                <button
-                  onClick={() => handleProtectedNavigate('/statistiques')}
-                  className="w-full text-left px-4 py-3 border border-indigo-600 text-indigo-600 rounded-lg font-medium flex items-center"
-                >
-                  📊 Statistiques
-                </button>
+            {/* HAMBURGER */}
+            <div style={{ position:'relative' }} ref={menuRef}>
+              <button onClick={() => setMenuOpen(p => !p)} aria-label="Menu"
+                style={{ width:48, height:48, borderRadius:15, border:'none', cursor:'pointer', background: menuOpen ? 'linear-gradient(135deg,#ea580c,#dc2626)' : 'linear-gradient(135deg,#f97316,#ea580c)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:5, boxShadow: menuOpen ? '0 8px 28px rgba(249,115,22,0.60)' : '0 4px 16px rgba(249,115,22,0.42)', transform: menuOpen ? 'scale(0.93)' : 'scale(1)', transition:'all 0.25s cubic-bezier(0.34,1.56,0.64,1)', padding:0 }}>
+                <span style={{ width:20, height:2.5, borderRadius:2, background:'#fff', display:'block', transition:'all 0.28s', transformOrigin:'center', transform: menuOpen ? 'rotate(45deg) translate(5px,5.5px)' : 'none' }}/>
+                <span style={{ width:20, height:2.5, borderRadius:2, background:'#fff', display:'block', transition:'all 0.28s', opacity: menuOpen ? 0 : 1 }}/>
+                <span style={{ width:20, height:2.5, borderRadius:2, background:'#fff', display:'block', transition:'all 0.28s', transformOrigin:'center', transform: menuOpen ? 'rotate(-45deg) translate(5px,-5.5px)' : 'none' }}/>
+              </button>
 
-                <button
-                  onClick={() => handleProtectedNavigate('/parametres')}
-                  className="w-full text-left px-4 py-3 border border-gray-600 text-gray-600 rounded-lg font-medium flex items-center"
-                >
-                  ⚙️ Paramètres
-                </button>
+              {menuOpen && (
+                <div style={{ position:'absolute', right:0, top:'calc(100% + 12px)', width:308, background:'#fff', borderRadius:24, overflow:'hidden', boxShadow:'0 28px 80px rgba(249,115,22,0.22), 0 0 0 1.5px rgba(249,115,22,0.13)', animation:'dropIn 0.26s cubic-bezier(0.34,1.56,0.64,1)', zIndex:200 }}>
 
-                {/* Gestion utilisateurs (admin seulement) */}
-                {isAdmin && (
-                  <button
-                    onClick={() => handleProtectedNavigate('/admin/users')}
-                    className="w-full text-left px-4 py-3 border border-red-600 text-red-600 rounded-lg font-medium flex items-center"
-                  >
-                    👨‍💼 Gestion utilisateurs
-                  </button>
-                )}
-
-                {/* Déconnexion/Connexion */}
-                <div className="pt-2">
-                  {user ? (
-                    <button
-                      onClick={() => {
-                        handleLogout();
-                        setDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-3 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg font-medium"
-                    >
-                      🚪 Déconnexion
-                    </button>
+                  {/* Header dropdown */}
+                  {isLoggedIn ? (
+                    <div style={{ padding:'16px 20px', display:'flex', alignItems:'center', gap:13, background:'linear-gradient(135deg,rgba(249,115,22,0.08),rgba(234,88,12,0.06))', borderBottom:'1px solid rgba(249,115,22,0.10)' }}>
+                      <div style={{ width:42, height:42, borderRadius:13, background:'linear-gradient(135deg,#f97316,#ea580c)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:900, fontSize:18, flexShrink:0, boxShadow:'0 4px 14px rgba(249,115,22,0.42)' }}>
+                        {userName.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        {/* ✅ Affiche le nom réel (nom/prenom/username/email) */}
+                        <div style={{ fontSize:14, fontWeight:800, color:'#1c0a00' }}>{userName}</div>
+                        <div style={{ fontSize:12, color:'#10b981', fontWeight:600, marginTop:2 }}>● Connecté</div>
+                      </div>
+                    </div>
                   ) : (
-                    <>
-                      <button
-                        onClick={() => {
-                          navigate('/login');
-                          setDropdownOpen(false);
-                        }}
-                        className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-medium mb-2"
-                      >
-                        🔑 Connexion
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          navigate('/register');
-                          setDropdownOpen(false);
-                        }}
-                        className="w-full px-4 py-3 border border-purple-600 text-purple-600 rounded-lg font-medium"
-                      >
-                        📝 Inscription
-                      </button>
-                    </>
+                    <div style={{ padding:'15px 20px', background:'linear-gradient(135deg,rgba(249,115,22,0.07),rgba(245,158,11,0.05))', borderBottom:'1px solid rgba(249,115,22,0.09)' }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:'#c2410c', letterSpacing:2, textTransform:'uppercase', marginBottom:3 }}>Navigation</div>
+                      <div style={{ fontSize:15, fontWeight:800, color:'#1c0a00' }}>CultureEvents 🎭</div>
+                    </div>
                   )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
 
-      {/* Hero Section */}
-      <section id="accueil" className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-blue-500/10"></div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32 relative">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Gestion Événementielle
-              <span className="block bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 bg-clip-text text-transparent">
-                Pour Professionnels Culturels
-              </span>
-            </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              {isLoggedIn 
-                ? `Bienvenue ${userName}, découvrez nos événements culturels à venir en 2026`
-                : "Découvrez nos événements culturels à venir en 2026"
-              }
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              {isLoggedIn ? (
-                <>
-                  <Link to="/dashboard/evenements" className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all font-bold text-lg shadow-xl hover:shadow-2xl">Voir tous les événements</Link>
-                  <Link to="/dashboard" className="px-8 py-4 bg-white text-gray-800 border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:bg-gray-50 transition-all font-bold text-lg shadow-lg hover:shadow-xl">Tableau de bord</Link>
-                </>
-              ) : (
-                <>
-                  <Link to="/register" className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all font-bold text-lg shadow-xl hover:shadow-2xl">Créer un compte</Link>
-                  <a href="#evenements" className="px-8 py-4 bg-white text-gray-800 border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:bg-gray-50 transition-all font-bold text-lg shadow-lg hover:shadow-xl">Voir nos événements</a>
-                </>
+                  {/* Items */}
+                  <div style={{ padding:'10px 10px 8px', display:'flex', flexDirection:'column', gap:2 }}>
+                    {menuItems.map((item, i) => (
+                      <button key={i} onClick={item.action}
+                        style={{ width:'100%', textAlign:'left', padding:'11px 14px', borderRadius:14, fontSize:14, fontWeight:600, color:'#78350f', border:'2px solid transparent', background:'transparent', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all 0.18s ease', display:'flex', alignItems:'center', gap:10 }}
+                        onMouseEnter={e => { const el=e.currentTarget as HTMLElement; el.style.background=`linear-gradient(135deg,${item.from}18,${item.to}0d)`; el.style.borderColor=`${item.from}35`; el.style.color=item.from; el.style.transform='translateX(5px)'; el.style.paddingLeft='18px'; }}
+                        onMouseLeave={e => { const el=e.currentTarget as HTMLElement; el.style.background='transparent'; el.style.borderColor='transparent'; el.style.color='#78350f'; el.style.transform='translateX(0)'; el.style.paddingLeft='14px'; }}>
+                        <span style={{ width:32, height:32, borderRadius:10, background:`linear-gradient(135deg,${item.from}22,${item.to}18)`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>{item.emoji}</span>
+                        {item.label}
+                      </button>
+                    ))}
+
+                    {isAdmin && (
+                      <>
+                        <div style={{ height:1, background:'linear-gradient(90deg,rgba(249,115,22,0.18),transparent)', margin:'4px 0' }}/>
+                        <button onClick={() => goGuard('/admin/users')}
+                          style={{ width:'100%', textAlign:'left', padding:'11px 14px', borderRadius:14, fontSize:14, fontWeight:600, color:'#d97706', border:'2px solid transparent', background:'rgba(245,158,11,0.07)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all 0.18s', display:'flex', alignItems:'center', gap:10 }}
+                          onMouseEnter={e => { const el=e.currentTarget as HTMLElement; el.style.background='rgba(245,158,11,0.15)'; el.style.transform='translateX(5px)'; }}
+                          onMouseLeave={e => { const el=e.currentTarget as HTMLElement; el.style.background='rgba(245,158,11,0.07)'; el.style.transform='translateX(0)'; }}>
+                          <span style={{ width:32, height:32, borderRadius:10, background:'rgba(245,158,11,0.18)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>👨‍💼</span>
+                          Gestion utilisateurs
+                        </button>
+                      </>
+                    )}
+
+                    <div style={{ height:1, background:'linear-gradient(90deg,rgba(249,115,22,0.15),transparent)', margin:'4px 0' }}/>
+
+                    {storedUser ? (
+                      <button onClick={doLogout}
+                        style={{ width:'100%', textAlign:'left', padding:'11px 14px', borderRadius:14, fontSize:14, fontWeight:700, color:'#dc2626', border:'2px solid transparent', background:'rgba(239,68,68,0.06)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all 0.18s', display:'flex', alignItems:'center', gap:10 }}
+                        onMouseEnter={e => { const el=e.currentTarget as HTMLElement; el.style.background='rgba(239,68,68,0.14)'; el.style.borderColor='rgba(239,68,68,0.25)'; el.style.transform='translateX(5px)'; }}
+                        onMouseLeave={e => { const el=e.currentTarget as HTMLElement; el.style.background='rgba(239,68,68,0.06)'; el.style.borderColor='transparent'; el.style.transform='translateX(0)'; }}>
+                        <span style={{ width:32, height:32, borderRadius:10, background:'rgba(239,68,68,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>🚪</span>
+                        Déconnexion
+                      </button>
+                    ) : (
+                      <div style={{ display:'flex', gap:8, padding:'4px 0' }}>
+                        <button onClick={() => { navigate('/login'); setMenuOpen(false); }}
+                          style={{ flex:1, padding:'11px 0', borderRadius:14, fontSize:13, fontWeight:700, color:'#fff', background:'linear-gradient(135deg,#f97316,#ea580c)', border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", boxShadow:'0 4px 14px rgba(249,115,22,0.42)', transition:'all 0.2s' }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform='translateY(-1px)'}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform='translateY(0)'}>
+                          🔑 Connexion
+                        </button>
+                        <button onClick={() => { navigate('/register'); setMenuOpen(false); }}
+                          style={{ flex:1, padding:'11px 0', borderRadius:14, fontSize:13, fontWeight:700, color:'#c2410c', background:'rgba(249,115,22,0.09)', border:'2px solid rgba(249,115,22,0.28)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all 0.2s' }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background='rgba(249,115,22,0.20)'}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background='rgba(249,115,22,0.09)'}>
+                          📝 Inscription
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
         </div>
+      </nav>
+
+      {/* ══════════ HERO ══════════ */}
+      <section id="accueil" style={{ position:'relative', overflow:'hidden', minHeight:'92vh', display:'flex', alignItems:'center', background:'linear-gradient(160deg,#fff8f0 0%,#fef3e6 50%,#fef0d8 100%)' }}>
+        <div className="blob blob-orange1"/><div className="blob blob-orange2"/><div className="blob blob-amber"/><div className="blob blob-cream"/>
+        <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(rgba(249,115,22,0.10) 1.5px,transparent 1.5px)', backgroundSize:'30px 30px', pointerEvents:'none' }}/>
+        <div style={{ maxWidth:1280, margin:'0 auto', padding:'80px 24px', width:'100%', position:'relative', zIndex:1 }}>
+          <div style={{ textAlign:'center', opacity:mounted?1:0, transform:mounted?'translateY(0)':'translateY(40px)', transition:'opacity 0.9s ease,transform 0.9s ease' }}>
+
+            <div style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'9px 22px', borderRadius:100, marginBottom:36, background:'linear-gradient(135deg,rgba(249,115,22,0.12),rgba(234,88,12,0.08))', border:'2px solid rgba(249,115,22,0.25)', fontSize:13, fontWeight:700, color:'#c2410c', animation:'fadeUp 0.7s ease 0.2s both' }}>
+              <span style={{ width:8, height:8, borderRadius:'50%', background:'linear-gradient(135deg,#f97316,#ea580c)', display:'inline-block', animation:'pulseDot 2s infinite' }}/>
+              ✨ Saison Culturelle 2026 — Réservations ouvertes !
+            </div>
+
+            <h1 style={{ fontSize:'clamp(44px,8vw,96px)', fontWeight:900, lineHeight:1.0, marginBottom:28, animation:'fadeUp 0.7s ease 0.3s both' }}>
+              <span style={{ display:'block', color:'#1c0a00' }}>Gestion</span>
+              <span style={{ display:'block', background:'linear-gradient(135deg,#f97316 0%,#ea580c 40%,#f59e0b 80%,#fbbf24 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundSize:'300% auto', animation:'shimmer 5s linear infinite' }}>Événementielle</span>
+              <span style={{ display:'block', fontSize:'52%', fontWeight:700, color:'#c2410c', marginTop:8, opacity:0.75 }}>Pour les Professionnels de la Culture</span>
+            </h1>
+
+            <p style={{ fontSize:18, color:'#78350f', maxWidth:580, margin:'0 auto 44px', lineHeight:1.75, animation:'fadeUp 0.7s ease 0.45s both', opacity:0.85 }}>
+              {isLoggedIn ? `Bienvenue ${userName} 👋 — Vos événements culturels 2026 vous attendent !` : "Découvrez, réservez et gérez vos événements culturels avec une plateforme intuitive et chaleureuse."}
+            </p>
+
+            <div style={{ display:'flex', justifyContent:'center', gap:16, flexWrap:'wrap', animation:'fadeUp 0.7s ease 0.55s both' }}>
+              {isLoggedIn
+                ? <><Link to="/dashboard/evenements" className="btn-hero-primary">🎉 Voir les événements</Link><Link to="/dashboard" className="btn-hero-ghost">Tableau de bord</Link></>
+                : <><Link to="/register" className="btn-hero-primary">🚀 Créer un compte</Link><a href="#evenements" className="btn-hero-ghost">Découvrir les événements</a></>
+              }
+            </div>
+
+            <div style={{ display:'flex', justifyContent:'center', flexWrap:'wrap', gap:48, marginTop:72, paddingTop:48, borderTop:'2px solid rgba(249,115,22,0.12)', animation:'fadeUp 0.7s ease 0.7s both' }}>
+              {[
+                { n: demoEvents.length,                                          label:'Événements 2026',    emoji:'🎭', color:'#f97316' },
+                { n: demoEvents.reduce((t, ev) => t + (ev.nbPlace ?? 0), 0),    label:'Places disponibles', emoji:'🎟️', color:'#ea580c' },
+                { n: 3,                                                          label:'Catégories',          emoji:'🎨', color:'#f59e0b' },
+              ].map((s, i) => (
+                <div key={i} style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:36, marginBottom:6 }}>{s.emoji}</div>
+                  <div style={{ fontSize:40, fontWeight:900, color:s.color, lineHeight:1 }}>{s.n}</div>
+                  <div style={{ fontSize:13, color:'#92400e', fontWeight:600, marginTop:4 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
-      {/* Section Événements */}
-      <section id="evenements" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Événements à Venir en 2026</h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">Découvrez nos prochains événements culturels</p>
+      {/* ══════════ EVENTS ══════════ */}
+      <section id="evenements" style={{ padding:'100px 0', background:'#fff' }}>
+        <div style={{ maxWidth:1280, margin:'0 auto', padding:'0 24px' }}>
+          <div style={{ textAlign:'center', marginBottom:64 }}>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 18px', borderRadius:100, marginBottom:20, background:'rgba(249,115,22,0.10)', border:'2px solid rgba(249,115,22,0.22)', fontSize:12, fontWeight:800, color:'#c2410c', letterSpacing:2, textTransform:'uppercase' }}>
+              🎭 Événements
+            </div>
+            <h2 style={{ fontSize:'clamp(32px,5vw,56px)', fontWeight:900, color:'#1c0a00', lineHeight:1.15, marginBottom:16 }}>
+              À l'affiche en <span style={{ background:'linear-gradient(135deg,#f97316,#ea580c)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>2026</span>
+            </h2>
+            <p style={{ fontSize:17, color:'#78350f', maxWidth:480, margin:'0 auto', opacity:0.8 }}>Des événements uniques pour tous les passionnés de culture.</p>
           </div>
-
-          {error && !loading && (
-            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg mb-6">{error}</div>
-          )}
 
           {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:20, padding:60 }}>
+              <div className="spinner-orange"/>
+              <p style={{ color:'#c2410c', fontSize:15, fontWeight:600 }}>Chargement des événements…</p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-3 gap-6">
-              {demoEvents.map((event) => (
-                <div key={event.id_event} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300">
-                  {/* Image de l'événement - AVEC VOS IMAGES RÉELLES */}
-                  <div className="relative h-48 overflow-hidden">
-                    <img 
-                      src={getEventImage(event)}
-                      alt={event.titre_event}
-                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
-                      onError={handleImageError}
-                      loading="lazy"
-                    />
-                    {event.nb_place && event.nb_place > 0 && (
-                      <div className="absolute top-3 right-3">
-                        <span className="px-3 py-1 bg-white/90 text-gray-900 text-sm font-semibold rounded-lg shadow-sm">{event.nb_place} places</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Contenu de l'événement */}
-                  <div className="p-6">
-                    {event.type_event?.nom_type && (
-                      <div className="mb-2">
-                        <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-lg">{event.type_event.nom_type}</span>
-                      </div>
-                    )}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))', gap:28 }}>
+              {demoEvents.map((ev, idx) => {
+                const c    = eventPalette[idx % eventPalette.length];
+                const isHov = activeCard === ev.idEvent;
+                return (
+                  <article key={ev.idEvent}
+                    onMouseEnter={() => setActiveCard(ev.idEvent)}
+                    onMouseLeave={() => setActiveCard(null)}
+                    style={{ borderRadius:24, background:'#fff', border:`2px solid ${isHov ? c.from+'45' : '#fde8d8'}`, boxShadow: isHov ? `0 24px 64px ${c.shadow}` : '0 4px 22px rgba(249,115,22,0.08)', overflow:'hidden', cursor:'pointer', transform: isHov ? 'translateY(-8px)' : 'translateY(0)', transition:'all 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
 
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">{event.titre_event}</h3>
-                    <p className="text-gray-600 mb-4 text-sm line-clamp-2">{event.description}</p>
-                    
-                    {/* Lieu */}
-                    {event.adresse && (
-                      <div className="flex items-center text-sm text-gray-700 mb-2">
-                        <svg className="w-4 h-4 mr-2 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="truncate">{event.adresse.ville}</span>
+                    {/* Image */}
+                    <div style={{ height:220, position:'relative', overflow:'hidden', background:`linear-gradient(135deg,${c.from}20,${c.to}12)` }}>
+                      <img src={getImg(ev)} alt={ev.titreEvent} onError={onImgErr}
+                        style={{ width:'100%', height:'100%', objectFit:'cover', transition:'transform 0.5s ease', transform: isHov ? 'scale(1.07)' : 'scale(1)' }}/>
+                      <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top,rgba(28,10,0,0.45) 0%,transparent 60%)' }}/>
+                      <div style={{ position:'absolute', top:16, left:16 }}>
+                        {/* ✅ typeEvent.nomType (camelCase) */}
+                        <span style={{ padding:'5px 14px', borderRadius:100, fontSize:11, fontWeight:800, background:`linear-gradient(135deg,${c.from},${c.to})`, color:'#fff', boxShadow:`0 4px 12px ${c.shadow}`, letterSpacing:0.5 }}>
+                          {ev.typeEvent?.nomType ?? 'Événement'}
+                        </span>
                       </div>
-                    )}
-                    
-                    <div className="space-y-2 mb-4">
-                      {event.date_debut && (
-                        <div className="flex items-center text-sm text-gray-700">
-                          <svg className="w-4 h-4 mr-2 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <div className="truncate">
-                            <div className="font-medium">{formatDate(event.date_debut)}</div>
-                            {event.date_fin && event.date_fin !== event.date_debut && (
-                              <div className="text-xs text-gray-500 truncate">au {formatDate(event.date_fin)}</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {event.date_debut && (
-                        <div className="flex items-center text-sm text-gray-700">
-                          <svg className="w-4 h-4 mr-2 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>{formatTime(event.date_debut)}</span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center text-sm text-gray-700">
-                        <svg className="w-4 h-4 mr-2 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="font-semibold">{displayTarif(event)}</span>
+                      <div style={{ position:'absolute', top:14, right:14 }}>
+                        {/* ✅ tarif.prix (camelCase) */}
+                        <span style={{ padding:'5px 12px', borderRadius:100, fontSize:12, fontWeight:800, background: (ev.tarif?.prix === 0) ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.92)', color: (ev.tarif?.prix === 0) ? '#fff' : c.from }}>
+                          {fmtTarif(ev)}
+                        </span>
                       </div>
                     </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <Link to={`/events/${event.id_event}`} className="px-4 py-2 text-purple-600 border border-purple-600 text-sm rounded-lg hover:bg-purple-50 transition-colors font-medium">Détails</Link>
-                      {isLoggedIn ? (
-                        <Link to={`/events/${event.id_event}/reservation`} className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors font-medium">Réserver</Link>
-                      ) : (
-                        <Link to="/register" className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors font-medium">S'inscrire pour réserver</Link>
-                      )}
+
+                    {/* Content */}
+                    <div style={{ padding:'22px 24px 24px' }}>
+                      {/* ✅ titreEvent */}
+                      <h3 style={{ fontSize:18, fontWeight:800, color:'#1c0a00', marginBottom:10, lineHeight:1.3 }}>{ev.titreEvent}</h3>
+                      <p style={{ fontSize:13, color:'#78350f', lineHeight:1.7, marginBottom:18, opacity:0.8 }}>{ev.description?.substring(0,110)}…</p>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:10, marginBottom:20 }}>
+                        {[
+                          { emoji:'📅', val: fmtDate(ev.dateDebut) },        // ✅ dateDebut
+                          { emoji:'🕐', val: fmtTime(ev.dateDebut) },        // ✅ dateDebut
+                          { emoji:'📍', val: ev.adresse?.ville ?? 'Lieu TBD' },
+                          { emoji:'🪑', val: `${ev.nbPlace ?? 0} places` },  // ✅ nbPlace
+                        ].map((m, mi) => m.val ? (
+                          <span key={mi} style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:12, color:'#92400e', background:'rgba(249,115,22,0.08)', padding:'4px 12px', borderRadius:100, fontWeight:600 }}>
+                            {m.emoji} {m.val}
+                          </span>
+                        ) : null)}
+                      </div>
+                      {/* ✅ idEvent */}
+                      <button onClick={() => navigate(`/events/${ev.idEvent}`)}
+                        style={{ width:'100%', padding:'12px', borderRadius:14, fontSize:14, fontWeight:800, color:'#fff', background:`linear-gradient(135deg,${c.from},${c.to})`, border:'none', cursor:'pointer', boxShadow:`0 6px 20px ${c.shadow}`, transition:'all 0.25s cubic-bezier(0.34,1.56,0.64,1)', fontFamily:"'DM Sans',sans-serif" }}
+                        onMouseEnter={e => { const el=e.currentTarget as HTMLElement; el.style.transform='translateY(-2px) scale(1.01)'; el.style.boxShadow=`0 12px 32px ${c.shadow}`; }}
+                        onMouseLeave={e => { const el=e.currentTarget as HTMLElement; el.style.transform='translateY(0) scale(1)'; el.style.boxShadow=`0 6px 20px ${c.shadow}`; }}>
+                        🎫 Réserver ma place
+                      </button>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
 
-          <div className="text-center mt-8">
-            {isLoggedIn ? (
-              <Link to="/dashboard/evenements" className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg hover:shadow-xl">
-                <span>Gérer mes événements</span>
-                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </Link>
-            ) : (
-              <Link to="/events" className="inline-flex items-center px-6 py-3 bg-white text-gray-900 border border-gray-300 rounded-lg hover:border-purple-300 hover:bg-gray-50 transition-all font-medium shadow-sm">
-                <span>Voir tous les événements</span>
-                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </Link>
-            )}
+          <div style={{ textAlign:'center', marginTop:56 }}>
+            <button onClick={() => goGuard('/events')}
+              style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'15px 36px', borderRadius:16, fontSize:16, fontWeight:800, color:'#fff', background:'linear-gradient(135deg,#f97316,#ea580c)', border:'none', cursor:'pointer', boxShadow:'0 10px 32px rgba(249,115,22,0.42)', transition:'all 0.3s cubic-bezier(0.34,1.56,0.64,1)', fontFamily:"'DM Sans',sans-serif" }}
+              onMouseEnter={e => { const el=e.currentTarget as HTMLElement; el.style.transform='translateY(-3px) scale(1.02)'; el.style.boxShadow='0 18px 48px rgba(249,115,22,0.55)'; }}
+              onMouseLeave={e => { const el=e.currentTarget as HTMLElement; el.style.transform='translateY(0) scale(1)'; el.style.boxShadow='0 10px 32px rgba(249,115,22,0.42)'; }}>
+              Voir tous les événements <span style={{ fontSize:18 }}>→</span>
+            </button>
           </div>
         </div>
       </section>
 
-      {/* Section Galerie des images du backend */}
-      <section className="py-12 bg-white border-t">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">🖼️ Galerie des images uploadées</h2>
-            <p className="text-gray-600 mb-6">
-              Ces images sont stockées sur votre backend Spring Boot et servies depuis{' '}
-              <code className="bg-gray-200 px-2 py-1 rounded">
-                {backendInfo?.folder || 'C:\\Users\\Utente\\Documents\\workspace-spring-tool-suite-4-4.28.1.RELEASE\\demo-4\\uploads\\images'}
-              </code>
-            </p>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              {backendImages.slice(0, 4).map((filename, index) => (
-                <div key={index} className="bg-white rounded-lg overflow-hidden shadow-lg">
-                  <img
-                    src={uploadService.getImageUrl(filename)}
-                    alt={`Image ${index + 1}`}
-                    className="w-full h-40 object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = uploadService.getDefaultFallback();
-                    }}
-                  />
-                  <div className="p-3 text-center">
-                    <div className="text-sm font-medium text-gray-900 truncate">
-                      {filename.length > 20 ? filename.substring(0, 20) + '...' : filename}
-                    </div>
-                  </div>
-                </div>
-              ))}
+      {/* ══════════ SERVICES ══════════ */}
+      <section id="services" style={{ padding:'100px 0', background:'linear-gradient(160deg,#fff8f0,#fef3e6)' }}>
+        <div style={{ maxWidth:1280, margin:'0 auto', padding:'0 24px' }}>
+          <div style={{ textAlign:'center', marginBottom:64 }}>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 18px', borderRadius:100, marginBottom:20, background:'rgba(249,115,22,0.10)', border:'2px solid rgba(249,115,22,0.22)', fontSize:12, fontWeight:800, color:'#c2410c', letterSpacing:2, textTransform:'uppercase' }}>
+              ✨ Services
             </div>
-            
-            <div className="text-center">
-              <div className="inline-flex items-center gap-4">
-                <button
-                  onClick={() => window.open('http://localhost:8081/files/list', '_blank')}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 shadow-lg"
-                >
-                  📋 Voir la liste complète des fichiers
-                </button>
-                <button
-                  onClick={() => window.open('http://localhost:8081/files/' + backendImages[0], '_blank')}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg"
-                >
-                  🔗 Tester une image
-                </button>
-              </div>
-              <div className="mt-4 text-sm text-gray-500">
-                <p>Total: <span className="font-bold">{backendImages.length}</span> images</p>
-                {backendInfo && (
-                  <p>Dossier backend: <code>{backendInfo.folder}</code></p>
-                )}
-              </div>
-            </div>
+            <h2 style={{ fontSize:'clamp(32px,5vw,52px)', fontWeight:900, color:'#1c0a00', lineHeight:1.15, marginBottom:16 }}>
+              Tout pour votre <span style={{ background:'linear-gradient(135deg,#f97316,#f59e0b)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Culture</span>
+            </h2>
           </div>
-        </div>
-      </section>
-
-      {/* Services Section */}
-      <section id="services" className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Nos Services Culturels</h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">Solutions complètes pour tous vos projets événementiels</p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {serviceCategories.map((service, index) => (
-              <div key={index} className="group bg-gray-50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className={`w-14 h-14 bg-gradient-to-br ${service.color} rounded-xl flex items-center justify-center mb-4`}>
-                  <span className="text-2xl">{service.icon}</span>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{service.title}</h3>
-                <p className="text-gray-600 mb-4">{service.description}</p>
-                <div className="flex items-center justify-between">
-                  <span className="inline-block px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-lg">Type: {service.type}</span>
-                  <div className="text-xs text-gray-500">Image: {service.image.substring(0, 10)}...</div>
-                </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:22 }}>
+            {serviceList.map((svc, i) => (
+              <div key={i}
+                style={{ padding:'28px 26px', borderRadius:22, background:'#fff', border:'2px solid #fde8d8', boxShadow:'0 4px 20px rgba(249,115,22,0.07)', cursor:'pointer', transition:'all 0.28s cubic-bezier(0.34,1.56,0.64,1)' }}
+                onMouseEnter={e => { const el=e.currentTarget as HTMLElement; el.style.transform='translateY(-6px)'; el.style.boxShadow='0 22px 52px rgba(249,115,22,0.18)'; el.style.borderColor=`${svc.from}45`; }}
+                onMouseLeave={e => { const el=e.currentTarget as HTMLElement; el.style.transform='translateY(0)'; el.style.boxShadow='0 4px 20px rgba(249,115,22,0.07)'; el.style.borderColor='#fde8d8'; }}>
+                <div style={{ width:60, height:60, borderRadius:18, background:`linear-gradient(135deg,${svc.from}20,${svc.to}14)`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, marginBottom:18 }}>{svc.icon}</div>
+                <h3 style={{ fontSize:17, fontWeight:800, color:'#1c0a00', marginBottom:10 }}>{svc.title}</h3>
+                <p style={{ fontSize:13, color:'#78350f', lineHeight:1.75, marginBottom:16, opacity:0.82 }}>{svc.desc}</p>
+                <span style={{ fontSize:11, fontWeight:800, color:svc.from, background:`${svc.from}15`, padding:'4px 12px', borderRadius:100 }}>{svc.tag}</span>
               </div>
             ))}
           </div>
-
-          {isLoggedIn && (
-            <div className="text-center mt-12">
-              <Link to="/create-event" className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all font-bold text-lg shadow-xl hover:shadow-2xl">
-                <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Créer un nouvel événement
-              </Link>
-            </div>
-          )}
         </div>
       </section>
 
-      {/* Statistiques */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center p-6">
-              <div className="text-4xl font-bold text-purple-600 mb-2">{demoEvents.length}</div>
-              <div className="text-gray-700">Événements à venir</div>
-            </div>
-            <div className="text-center p-6">
-              <div className="text-4xl font-bold text-blue-600 mb-2">
-                {demoEvents.reduce((total, event) => total + (event.nb_place || 0), 0)}
-              </div>
-              <div className="text-gray-700">Places disponibles</div>
-            </div>
-            <div className="text-center p-6">
-              <div className="text-4xl font-bold text-green-600 mb-2">
-                {new Set(demoEvents.filter(e => e.type_event?.nom_type).map(e => e.type_event!.nom_type)).size}
-              </div>
-              <div className="text-gray-700">Catégories d'événements</div>
-            </div>
+      {/* ══════════ CTA ══════════ */}
+      <section style={{ padding:'80px 0', background:'linear-gradient(135deg,#f97316,#ea580c,#f59e0b)', position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(rgba(255,255,255,0.07) 1.5px,transparent 1.5px)', backgroundSize:'24px 24px', pointerEvents:'none' }}/>
+        <div style={{ maxWidth:760, margin:'0 auto', padding:'0 24px', textAlign:'center', position:'relative' }}>
+          <h2 style={{ fontSize:'clamp(28px,5vw,46px)', fontWeight:900, color:'#fff', marginBottom:16, lineHeight:1.2 }}>Prêt à créer des moments inoubliables ?</h2>
+          <p style={{ fontSize:17, color:'rgba(255,255,255,0.87)', marginBottom:38, lineHeight:1.7 }}>Rejoignez CultureEvents et gérez tous vos événements culturels depuis une seule plateforme.</p>
+          <div style={{ display:'flex', justifyContent:'center', gap:14, flexWrap:'wrap' }}>
+            <button onClick={() => navigate('/register')}
+              style={{ display:'inline-flex', alignItems:'center', gap:9, padding:'14px 32px', borderRadius:16, fontSize:16, fontWeight:800, color:'#f97316', background:'#fff', border:'none', cursor:'pointer', boxShadow:'0 8px 28px rgba(0,0,0,0.2)', transition:'all 0.25s cubic-bezier(0.34,1.56,0.64,1)', fontFamily:"'DM Sans',sans-serif" }}
+              onMouseEnter={e => { const el=e.currentTarget as HTMLElement; el.style.transform='translateY(-3px) scale(1.03)'; el.style.boxShadow='0 16px 42px rgba(0,0,0,0.28)'; }}
+              onMouseLeave={e => { const el=e.currentTarget as HTMLElement; el.style.transform='translateY(0) scale(1)'; el.style.boxShadow='0 8px 28px rgba(0,0,0,0.2)'; }}>
+              🚀 Commencer maintenant
+            </button>
+            <button onClick={() => navigate('/login')}
+              style={{ display:'inline-flex', alignItems:'center', gap:9, padding:'14px 32px', borderRadius:16, fontSize:16, fontWeight:700, color:'#fff', background:'rgba(255,255,255,0.18)', border:'2px solid rgba(255,255,255,0.42)', cursor:'pointer', transition:'all 0.22s', fontFamily:"'DM Sans',sans-serif" }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.30)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.18)'}>
+              🔑 Se connecter
+            </button>
           </div>
         </div>
       </section>
 
-      {/* CTA Final */}
-      <section className="py-16 bg-gradient-to-r from-purple-700 to-blue-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-6">
-            {isLoggedIn ? 'Prêt à créer votre propre événement ?' : 'Prêt à organiser votre événement culturel ?'}
-          </h2>
-          <p className="text-lg text-purple-200 mb-8">
-            {isLoggedIn 
-              ? 'Commencez dès maintenant à créer et gérer vos événements culturels'
-              : 'Rejoignez-nous et découvrez tous nos événements pour 2026'
-            }
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            {isLoggedIn ? (
-              <>
-                <Link to="/create-event" className="px-8 py-4 bg-white text-purple-700 rounded-lg hover:bg-gray-100 transition-all font-bold shadow-lg">Créer un événement</Link>
-                <Link to="/dashboard/evenements" className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg hover:bg-white/10 transition-all font-bold">Voir mes événements</Link>
-              </>
-            ) : (
-              <>
-                <Link to="/register" className="px-8 py-4 bg-white text-purple-700 rounded-lg hover:bg-gray-100 transition-all font-bold shadow-lg">S'inscrire gratuitement</Link>
-                <Link to="/events" className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg hover:bg-white/10 transition-all font-bold">Voir tous les événements</Link>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8">
+      {/* ══════════ FOOTER ══════════ */}
+      <footer style={{ background:'#1c0a00', padding:'72px 0 32px' }}>
+        <div style={{ maxWidth:1280, margin:'0 auto', padding:'0 24px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:48, marginBottom:56 }}>
             <div>
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold">CE</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">CultureEvents</h3>
-                  <p className="text-sm text-gray-400">Gestion événementielle</p>
-                </div>
+              <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:18 }}>
+                <div style={{ width:44, height:44, borderRadius:14, background:'linear-gradient(135deg,#f97316,#ea580c)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:16, color:'#fff', boxShadow:'0 4px 14px rgba(249,115,22,0.4)' }}>CE</div>
+                <div><div style={{ fontWeight:800, fontSize:18, color:'#fff' }}>CultureEvents</div><div style={{ fontSize:11, color:'#fb923c', fontWeight:600 }}>Gestion événementielle</div></div>
               </div>
-              <p className="text-gray-400 text-sm">Plateforme complète pour la gestion d'événements culturels</p>
-              <div className="mt-2 text-xs text-gray-500">
-                <div>Images: {backendImages.length} du backend</div>
-                <div>API: http://localhost:8081/files/</div>
+              <p style={{ fontSize:13, color:'rgba(255,255,255,0.40)', lineHeight:1.8 }}>Plateforme complète pour la gestion d'événements culturels professionnels.</p>
+            </div>
+            {/* ✅ footerCols typé — plus de (lk as any) */}
+            {footerCols.map((col, ci) => (
+              <div key={ci}>
+                <h4 style={{ fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.38)', letterSpacing:3, textTransform:'uppercase', marginBottom:20 }}>{col.title}</h4>
+                <ul style={{ listStyle:'none', padding:0, margin:0, display:'flex', flexDirection:'column', gap:12 }}>
+                  {col.links.map((lk, li) => (
+                    <li key={li}>
+                      {lk.href
+                        ? <a href={lk.href} style={{ fontSize:14, color:'rgba(255,255,255,0.45)', textDecoration:'none', transition:'color 0.2s' }} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.color='#fb923c'} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.color='rgba(255,255,255,0.45)'}>{lk.label}</a>
+                        : lk.fn
+                          ? <button onClick={lk.fn} style={{ fontSize:14, color:'rgba(255,255,255,0.45)', background:'none', border:'none', cursor:'pointer', padding:0, transition:'color 0.2s', textAlign:'left' }} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.color='#fb923c'} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.color='rgba(255,255,255,0.45)'}>{lk.label}</button>
+                          : <span style={{ fontSize:14, color:'rgba(255,255,255,0.28)' }}>{lk.label}</span>
+                      }
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
-            
-            <div>
-              <h4 className="font-bold mb-4">Navigation</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><button
-                  onClick={() => {
-                    const accueilSection = document.getElementById('accueil');
-                    if (accueilSection) {
-                      accueilSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer"
-                >
-                  Accueil
-                </button></li>
-                <li><a href="#evenements" className="hover:text-white transition-colors">Événements</a></li>
-                <li><a href="#services" className="hover:text-white transition-colors">Services culturels</a></li>
-                <li><button
-                  onClick={() => handleProtectedNavigate('/dashboard')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
-                >
-                  Tableau de bord
-                </button></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-bold mb-4">Événements</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><button
-                  onClick={() => handleProtectedNavigate('/events')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
-                >
-                  Voir tous les événements
-                </button></li>
-                <li><button
-                  onClick={() => handleProtectedNavigate('/create-event')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
-                >
-                  Créer un événement
-                </button></li>
-                <li><button
-                  onClick={() => handleProtectedNavigate('/dashboard')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
-                >
-                  Gestion événements
-                </button></li>
-                <li><button
-                  onClick={() => navigate('/login')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
-                >
-                  Se connecter
-                </button></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-bold mb-4">Technique</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li>Backend: Spring Boot 3.5.0</li>
-                <li>Frontend: React TypeScript</li>
-                <li>Base: MySQL 5.7.24</li>
-                <li>Images: {backendImages.length} fichiers</li>
-                <li>
-                  <a href="http://localhost:8081/files/list" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">Voir API images</a>
-                </li>
-              </ul>
-            </div>
+            ))}
           </div>
-          
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; {new Date().getFullYear()} CultureEvents. Tous droits réservés.</p>
-            <p className="text-xs mt-2">Projet BTS SIO SLAM - Intégration complète frontend/backend</p>
+          <div style={{ display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between', paddingTop:32, borderTop:'1px solid rgba(255,255,255,0.08)', gap:12 }}>
+            <p style={{ fontSize:13, color:'rgba(255,255,255,0.28)' }}>© {new Date().getFullYear()} CultureEvents. Tous droits réservés.</p>
+            <p style={{ fontSize:12, color:'rgba(255,255,255,0.20)' }}>Projet BTS SIO SLAM · React + Spring Boot</p>
           </div>
         </div>
       </footer>
+
+      {/* ══════════ GLOBAL STYLES ══════════ */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900&display=swap');
+        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+        html { scroll-behavior:smooth; }
+        .blob { position:absolute; border-radius:50%; pointer-events:none; }
+        .blob-orange1 { width:650px; height:650px; background:radial-gradient(circle,rgba(249,115,22,0.20) 0%,transparent 65%); top:-200px; left:-150px; animation:blob1 9s ease-in-out infinite; }
+        .blob-orange2 { width:520px; height:520px; background:radial-gradient(circle,rgba(234,88,12,0.16) 0%,transparent 65%); top:-80px; right:-80px; animation:blob2 11s ease-in-out infinite; }
+        .blob-amber   { width:460px; height:460px; background:radial-gradient(circle,rgba(245,158,11,0.14) 0%,transparent 65%); bottom:-80px; left:32%; animation:blob3 13s ease-in-out infinite; }
+        .blob-cream   { width:360px; height:360px; background:radial-gradient(circle,rgba(251,191,36,0.12) 0%,transparent 65%); bottom:0; right:8%; animation:blob1 10s ease-in-out infinite reverse; }
+        .navpill { padding:8px 16px; border-radius:12px; font-size:14px; font-weight:600; color:#78350f; text-decoration:none; border:none; background:transparent; cursor:pointer; transition:all 0.2s; font-family:'DM Sans',sans-serif; }
+        .navpill:hover { color:#f97316; background:rgba(249,115,22,0.09); }
+        .nav-desktop { display:flex; align-items:center; gap:4px; }
+        @media(max-width:1023px) { .nav-desktop { display:none !important; } }
+        .btn-hero-primary { padding:17px 40px; border-radius:18px; font-weight:800; font-size:17px; color:#fff; background:linear-gradient(135deg,#f97316,#ea580c); box-shadow:0 10px 35px rgba(249,115,22,0.45); text-decoration:none; transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1); display:inline-block; font-family:'DM Sans',sans-serif; }
+        .btn-hero-primary:hover { transform:translateY(-4px) scale(1.03); box-shadow:0 18px 50px rgba(249,115,22,0.60); }
+        .btn-hero-ghost { padding:17px 40px; border-radius:18px; font-weight:700; font-size:17px; color:#c2410c; background:rgba(249,115,22,0.09); border:2.5px solid rgba(249,115,22,0.28); text-decoration:none; transition:all 0.25s; display:inline-block; font-family:'DM Sans',sans-serif; }
+        .btn-hero-ghost:hover { background:rgba(249,115,22,0.18); transform:translateY(-2px); }
+        .spinner-orange { width:48px; height:48px; border:5px solid rgba(249,115,22,0.15); border-top:5px solid #f97316; border-radius:50%; animation:spin 0.8s linear infinite; }
+        ::-webkit-scrollbar { width:5px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:rgba(249,115,22,0.30); border-radius:100px; }
+        @keyframes blob1    { 0%,100%{transform:translate(0,0) scale(1);} 33%{transform:translate(60px,-50px) scale(1.09);} 66%{transform:translate(-35px,35px) scale(0.94);} }
+        @keyframes blob2    { 0%,100%{transform:translate(0,0) scale(1);} 40%{transform:translate(-60px,50px) scale(1.07);} 70%{transform:translate(40px,-30px) scale(0.96);} }
+        @keyframes blob3    { 0%,100%{transform:translate(0,0);} 50%{transform:translate(50px,-60px) scale(1.06);} }
+        @keyframes shimmer  { 0%{background-position:0% center;} 100%{background-position:300% center;} }
+        @keyframes fadeUp   { from{opacity:0;transform:translateY(24px);} to{opacity:1;transform:translateY(0);} }
+        @keyframes dropIn   { from{opacity:0;transform:translateY(-14px) scale(0.93);} to{opacity:1;transform:translateY(0) scale(1);} }
+        @keyframes spin     { to{transform:rotate(360deg);} }
+        @keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.5;transform:scale(0.8);} }
+      `}</style>
     </div>
   );
 }
